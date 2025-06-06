@@ -2,6 +2,11 @@
 
 우리 동네 실시간 상황 공유 플랫폼
 
+<img width="645" alt="image" src="https://github.com/user-attachments/assets/dbcfa7fd-6892-44e2-afe9-a5448cc6aa24" />
+<img width="1721" alt="image" src="https://github.com/user-attachments/assets/7cae07cd-e14c-4945-9acd-cd23281e488b" />
+<img width="496" alt="image" src="https://github.com/user-attachments/assets/fbf5a0b9-893a-4368-ba56-720662ad276e" />
+
+
 ## 프로젝트 소개
 
 사이렌 소리나 기타 동네 상황, 현재 위치에서 공유하고 싶은 상황을 지도 위에서 실시간으로 공유할 수 있는 웹 애플리케이션입니다.
