@@ -87,8 +87,6 @@ function App() {
       const alertWithLocation = {
         ...alertData,
         location: userLocation,
-        lat: userLocation?.lat,
-        lng: userLocation?.lng,
       };
 
       if (isOnline) {

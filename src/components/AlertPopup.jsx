@@ -11,12 +11,15 @@ import {
   MessageSquare,
   Send,
   User,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import {
   getComments,
   addComment,
   subscribeToComments,
 } from "../services/alertService";
+import { isSupabaseConnected } from "../lib/supabase";
 
 const AlertPopup = ({ alert, onClose }) => {
   const [comments, setComments] = useState([]);
@@ -25,9 +28,10 @@ const AlertPopup = ({ alert, onClose }) => {
     localStorage.getItem("username") || ""
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSupabaseOnline] = useState(isSupabaseConnected());
 
   useEffect(() => {
-    if (!alert?.id) return;
+    if (!alert?.id || !isSupabaseOnline) return;
 
     // 댓글 불러오기
     loadComments();
@@ -40,7 +44,7 @@ const AlertPopup = ({ alert, onClose }) => {
         subscription.unsubscribe();
       }
     };
-  }, [alert?.id]);
+  }, [alert?.id, isSupabaseOnline]);
 
   const loadComments = async () => {
     try {
@@ -61,7 +65,13 @@ const AlertPopup = ({ alert, onClose }) => {
 
   const handleSubmitComment = async (e) => {
     e.preventDefault();
-    if (!newComment.trim() || !userName.trim() || isSubmitting) return;
+    if (
+      !newComment.trim() ||
+      !userName.trim() ||
+      isSubmitting ||
+      !isSupabaseOnline
+    )
+      return;
 
     setIsSubmitting(true);
     try {
@@ -189,13 +199,28 @@ const AlertPopup = ({ alert, onClose }) => {
                 <h3 className="font-medium text-gray-900">
                   댓글 {comments.length}개
                 </h3>
+                {isSupabaseOnline ? (
+                  <Wifi className="h-4 w-4 text-green-500" />
+                ) : (
+                  <WifiOff className="h-4 w-4 text-gray-400" />
+                )}
               </div>
+
+              {!isSupabaseOnline && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+                  <p className="text-sm text-yellow-800">
+                    💡 댓글 기능을 사용하려면 Supabase 설정이 필요합니다.
+                  </p>
+                </div>
+              )}
 
               {/* 댓글 목록 */}
               <div className="space-y-3 mb-4 max-h-40 overflow-y-auto">
                 {comments.length === 0 ? (
                   <p className="text-center text-gray-500 text-sm py-4">
-                    첫 번째 댓글을 작성해보세요!
+                    {isSupabaseOnline
+                      ? "첫 번째 댓글을 작성해보세요!"
+                      : "댓글 기능이 비활성화되었습니다."}
                   </p>
                 ) : (
                   comments.map((comment) => (
@@ -219,41 +244,43 @@ const AlertPopup = ({ alert, onClose }) => {
         </div>
 
         {/* 댓글 작성 폼 */}
-        <div className="border-t border-gray-100 p-4">
-          <form onSubmit={handleSubmitComment} className="space-y-3">
-            {/* 사용자명 입력 */}
-            <input
-              type="text"
-              value={userName}
-              onChange={(e) => setUserName(e.target.value)}
-              placeholder="닉네임"
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-              required
-            />
-
-            {/* 댓글 입력 */}
-            <div className="flex space-x-2">
+        {isSupabaseOnline && (
+          <div className="border-t border-gray-100 p-4">
+            <form onSubmit={handleSubmitComment} className="space-y-3">
+              {/* 사용자명 입력 */}
               <input
                 type="text"
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                placeholder="댓글을 입력하세요..."
-                className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-                disabled={isSubmitting}
+                value={userName}
+                onChange={(e) => setUserName(e.target.value)}
+                placeholder="닉네임"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                 required
               />
-              <button
-                type="submit"
-                disabled={
-                  !newComment.trim() || !userName.trim() || isSubmitting
-                }
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center space-x-1"
-              >
-                <Send className="h-4 w-4" />
-              </button>
-            </div>
-          </form>
-        </div>
+
+              {/* 댓글 입력 */}
+              <div className="flex space-x-2">
+                <input
+                  type="text"
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  placeholder="댓글을 입력하세요..."
+                  className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                  disabled={isSubmitting}
+                  required
+                />
+                <button
+                  type="submit"
+                  disabled={
+                    !newComment.trim() || !userName.trim() || isSubmitting
+                  }
+                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center space-x-1"
+                >
+                  <Send className="h-4 w-4" />
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
       </div>
     </div>
   );
