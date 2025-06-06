@@ -10,6 +10,9 @@ import {
 import Map from "./components/Map";
 import ReportModal from "./components/ReportModal";
 import AlertPopup from "./components/AlertPopup";
+import Footer from "./components/Footer";
+import TermsOfService from "./components/TermsOfService";
+import PrivacyPolicy from "./components/PrivacyPolicy";
 import {
   getAlerts,
   createAlert,
@@ -22,6 +25,10 @@ function App() {
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
   const [isOnline, setIsOnline] = useState(true);
+
+  // 법적 문서 모달 상태
+  const [showTerms, setShowTerms] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
 
   useEffect(() => {
     // 위치 권한 요청
@@ -146,14 +153,20 @@ function App() {
       {/* 플로팅 버튼 */}
       <button
         onClick={() => setShowReportModal(true)}
-        className="fixed bottom-6 right-6 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white rounded-full p-4 shadow-2xl transition-all hover:scale-105 active:scale-95 z-50 touch-manipulation"
+        className="fixed bottom-20 right-6 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white rounded-full p-4 shadow-2xl transition-all hover:scale-105 active:scale-95 z-50 touch-manipulation"
         style={{
-          bottom: "max(1.5rem, env(safe-area-inset-bottom))",
+          bottom: "max(5rem, env(safe-area-inset-bottom) + 5rem)",
           right: "max(1.5rem, env(safe-area-inset-right))",
         }}
       >
         <Plus className="h-6 w-6" />
       </button>
+
+      {/* 푸터 */}
+      <Footer
+        onTermsClick={() => setShowTerms(true)}
+        onPrivacyClick={() => setShowPrivacy(true)}
+      />
 
       {/* 신고 모달 */}
       {showReportModal && (
@@ -170,6 +183,12 @@ function App() {
           onClose={() => setSelectedAlert(null)}
         />
       )}
+
+      {/* 이용약관 모달 */}
+      {showTerms && <TermsOfService onClose={() => setShowTerms(false)} />}
+
+      {/* 개인정보처리방침 모달 */}
+      {showPrivacy && <PrivacyPolicy onClose={() => setShowPrivacy(false)} />}
     </div>
   );
 }
