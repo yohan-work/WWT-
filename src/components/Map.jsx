@@ -214,13 +214,60 @@ const Map = ({ userLocation, alerts, onMarkerClick, className }) => {
         // 마커 클릭 이벤트
         window.kakao.maps.event.addListener(marker, "click", () => {
           if (onMarkerClick) {
-            onMarkerClick(alert);
+            // 같은 위치의 모든 알림 찾기 (10m 반경)
+            const nearbyAlerts = findNearbyAlerts(alert, alerts);
+
+            if (nearbyAlerts.length > 1) {
+              // 여러 알림이 있으면 배열로 전달
+              onMarkerClick(nearbyAlerts);
+            } else {
+              // 단일 알림은 기존처럼 처리
+              onMarkerClick(alert);
+            }
           }
         });
 
         markersRef.current.push(marker);
       }
     });
+  };
+
+  // 같은 위치의 알림들을 찾는 함수
+  const findNearbyAlerts = (targetAlert, allAlerts) => {
+    const nearbyAlerts = [];
+
+    allAlerts.forEach((alert) => {
+      if (!alert.location || !targetAlert.location) return;
+
+      const distance = calculateDistance(
+        targetAlert.location.lat,
+        targetAlert.location.lng,
+        alert.location.lat,
+        alert.location.lng
+      );
+
+      // 10m 반경 내의 알림들 찾기
+      if (distance < 0.01) {
+        nearbyAlerts.push(alert);
+      }
+    });
+
+    return nearbyAlerts;
+  };
+
+  // 두 지점 간의 거리 계산 (km)
+  const calculateDistance = (lat1, lng1, lat2, lng2) => {
+    const R = 6371; // 지구 반지름 (km)
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLng = ((lng2 - lng1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
   };
 
   const getAlertColor = (type) => {

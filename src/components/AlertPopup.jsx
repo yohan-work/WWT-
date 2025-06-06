@@ -13,6 +13,8 @@ import {
   User,
   Wifi,
   WifiOff,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
   getComments,
@@ -22,6 +24,12 @@ import {
 import { isSupabaseConnected } from "../lib/supabase";
 
 const AlertPopup = ({ alert, onClose }) => {
+  // alert가 배열인지 단일 객체인지 확인
+  const isMultipleAlerts = Array.isArray(alert);
+  const alerts = isMultipleAlerts ? alert : [alert];
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const currentAlert = alerts[currentIndex];
+
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
   const [userName, setUserName] = useState(
@@ -31,24 +39,34 @@ const AlertPopup = ({ alert, onClose }) => {
   const [isSupabaseOnline] = useState(isSupabaseConnected());
 
   useEffect(() => {
-    if (!alert?.id || !isSupabaseOnline) return;
+    if (!currentAlert?.id || !isSupabaseOnline) return;
 
     // 댓글 불러오기
     loadComments();
 
     // 실시간 댓글 구독
-    const subscription = subscribeToComments(alert.id, handleCommentChange);
+    const subscription = subscribeToComments(
+      currentAlert.id,
+      handleCommentChange
+    );
 
     return () => {
       if (subscription) {
         subscription.unsubscribe();
       }
     };
-  }, [alert?.id, isSupabaseOnline]);
+  }, [currentAlert?.id, isSupabaseOnline]);
+
+  // 슬라이드 변경 시 댓글도 다시 로드
+  useEffect(() => {
+    if (currentAlert?.id && isSupabaseOnline) {
+      loadComments();
+    }
+  }, [currentIndex]);
 
   const loadComments = async () => {
     try {
-      const commentsData = await getComments(alert.id);
+      const commentsData = await getComments(currentAlert.id);
       setComments(commentsData);
     } catch (error) {
       console.error("댓글 로드 실패:", error);
@@ -78,13 +96,61 @@ const AlertPopup = ({ alert, onClose }) => {
       // 사용자명 저장
       localStorage.setItem("username", userName);
 
-      await addComment(alert.id, newComment.trim(), userName.trim());
+      await addComment(currentAlert.id, newComment.trim(), userName.trim());
       setNewComment("");
     } catch (error) {
       console.error("댓글 작성 실패:", error);
       alert("댓글 작성에 실패했습니다. 다시 시도해주세요.");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // 슬라이드 네비게이션
+  const goToPrevious = () => {
+    setCurrentIndex((prev) => (prev > 0 ? prev - 1 : alerts.length - 1));
+  };
+
+  const goToNext = () => {
+    setCurrentIndex((prev) => (prev < alerts.length - 1 ? prev + 1 : 0));
+  };
+
+  // 키보드 네비게이션
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "ArrowLeft") goToPrevious();
+      if (e.key === "ArrowRight") goToNext();
+      if (e.key === "Escape") onClose();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // 터치/스와이프 네비게이션
+  const [touchStart, setTouchStart] = useState(null);
+  const [touchEnd, setTouchEnd] = useState(null);
+
+  const handleTouchStart = (e) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchMove = (e) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStart || !touchEnd || !isMultipleAlerts) return;
+
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > 50;
+    const isRightSwipe = distance < -50;
+
+    if (isLeftSwipe) {
+      goToNext();
+    } else if (isRightSwipe) {
+      goToPrevious();
     }
   };
 
@@ -132,12 +198,35 @@ const AlertPopup = ({ alert, onClose }) => {
     return `${Math.floor(diff / 86400)}일 전`;
   };
 
-  const Icon = getAlertIcon(alert.type);
-  const colorClass = getAlertColor(alert.type);
+  const Icon = getAlertIcon(currentAlert.type);
+  const colorClass = getAlertColor(currentAlert.type);
 
   return (
     <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div
+        className="bg-white rounded-3xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-hidden flex flex-col relative"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        {/* 슬라이드 네비게이션 버튼 - 여러 알림이 있을 때만 표시 */}
+        {isMultipleAlerts && (
+          <>
+            <button
+              onClick={goToPrevious}
+              className="absolute left-2 top-1/2 -translate-y-1/2 z-10 bg-white/80 hover:bg-white rounded-full p-2 shadow-lg transition-all"
+            >
+              <ChevronLeft className="h-5 w-5 text-gray-600" />
+            </button>
+            <button
+              onClick={goToNext}
+              className="absolute right-2 top-1/2 -translate-y-1/2 z-10 bg-white/80 hover:bg-white rounded-full p-2 shadow-lg transition-all"
+            >
+              <ChevronRight className="h-5 w-5 text-gray-600" />
+            </button>
+          </>
+        )}
+
         {/* 헤더 */}
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
           <div className="flex items-center space-x-3">
@@ -145,22 +234,44 @@ const AlertPopup = ({ alert, onClose }) => {
               <Icon className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="font-bold text-gray-900 text-lg">{alert.title}</h2>
+              <h2 className="font-bold text-gray-900 text-lg">
+                {currentAlert.title}
+              </h2>
               <span className="text-sm text-gray-500">
-                {getTypeLabel(alert.type)}
+                {getTypeLabel(currentAlert.type)}
               </span>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-          >
-            <X className="h-5 w-5 text-gray-400" />
-          </button>
+          <div className="flex items-center space-x-2">
+            {/* 슬라이드 인디케이터 - 여러 알림이 있을 때만 표시 */}
+            {isMultipleAlerts && (
+              <div className="flex items-center space-x-1 mr-4">
+                <span className="text-xs text-gray-500">
+                  {currentIndex + 1}/{alerts.length}
+                </span>
+                <div className="flex space-x-1">
+                  {alerts.map((_, index) => (
+                    <div
+                      key={index}
+                      className={`w-2 h-2 rounded-full transition-colors ${
+                        index === currentIndex ? "bg-blue-500" : "bg-gray-300"
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            >
+              <X className="h-5 w-5 text-gray-400" />
+            </button>
+          </div>
         </div>
 
         {/* 스크롤 가능한 내용 영역 */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto transition-all duration-300 ease-in-out">
           {/* 알림 내용 */}
           <div className="p-6 space-y-4">
             <div>
@@ -168,7 +279,7 @@ const AlertPopup = ({ alert, onClose }) => {
                 상세 내용
               </h3>
               <p className="text-gray-900 leading-relaxed">
-                {alert.description}
+                {currentAlert.description}
               </p>
             </div>
 
@@ -177,16 +288,20 @@ const AlertPopup = ({ alert, onClose }) => {
               <div className="flex items-center space-x-2 text-sm text-gray-500">
                 <MapPin className="h-4 w-4" />
                 <span>
-                  {alert.location
-                    ? `${alert.location.lat.toFixed(
+                  {currentAlert.location
+                    ? `${currentAlert.location.lat.toFixed(
                         4
-                      )}, ${alert.location.lng.toFixed(4)}`
+                      )}, ${currentAlert.location.lng.toFixed(4)}`
                     : "위치 정보 없음"}
                 </span>
               </div>
               <div className="flex items-center space-x-2 text-sm text-gray-500">
                 <Clock className="h-4 w-4" />
-                <span>{getTimeAgo(alert.timestamp || alert.created_at)}</span>
+                <span>
+                  {getTimeAgo(
+                    currentAlert.timestamp || currentAlert.created_at
+                  )}
+                </span>
               </div>
             </div>
           </div>
