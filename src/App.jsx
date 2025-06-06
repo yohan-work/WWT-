@@ -126,7 +126,7 @@ function App() {
       />
 
       {/* 상단 미니 헤더 */}
-      <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm rounded-2xl px-4 py-2 shadow-lg z-10">
+      <div className="fixed top-4 left-4 bg-white/90 backdrop-blur-sm rounded-2xl px-4 py-2 shadow-lg z-50">
         <div className="flex items-center space-x-2">
           <MapPin className="h-5 w-5 text-primary-600" />
           <span className="font-bold text-gray-900">동네 알림이</span>
@@ -146,7 +146,11 @@ function App() {
       {/* 플로팅 버튼 */}
       <button
         onClick={() => setShowReportModal(true)}
-        className="absolute bottom-6 right-6 bg-primary-600 hover:bg-primary-700 text-white rounded-full p-4 shadow-lg transition-all hover:scale-105 z-10"
+        className="fixed bottom-6 right-6 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white rounded-full p-4 shadow-2xl transition-all hover:scale-105 active:scale-95 z-50 touch-manipulation"
+        style={{
+          bottom: "max(1.5rem, env(safe-area-inset-bottom))",
+          right: "max(1.5rem, env(safe-area-inset-right))",
+        }}
       >
         <Plus className="h-6 w-6" />
       </button>
