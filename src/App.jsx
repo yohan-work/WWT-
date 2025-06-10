@@ -118,7 +118,7 @@ function App() {
       setShowReportModal(false);
     } catch (error) {
       console.error("알림 생성 실패:", error);
-      alert("알림 생성에 실패했습니다. 다시 시도해주세요.");
+      window.alert("알림 생성에 실패했습니다. 다시 시도해주세요.");
     }
   };
 
@@ -181,6 +181,7 @@ function App() {
         <AlertPopup
           alert={selectedAlert}
           onClose={() => setSelectedAlert(null)}
+          onUpdate={loadAlerts}
         />
       )}
 

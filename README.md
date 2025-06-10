@@ -1,10 +1,10 @@
 # 동네 알림이
 
 우리 동네 실시간 상황 공유 플랫폼
+
 <img width="1246" alt="image" src="https://github.com/user-attachments/assets/8d2a3a70-5ab7-4471-917b-ed8ce35bc510" />
 <img width="645" alt="image" src="https://github.com/user-attachments/assets/dbcfa7fd-6892-44e2-afe9-a5448cc6aa24" />
 <img width="496" alt="image" src="https://github.com/user-attachments/assets/fbf5a0b9-893a-4368-ba56-720662ad276e" />
-
 
 ## 프로젝트 소개
 
@@ -15,6 +15,7 @@
 - GPS 기반 위치 확인
 - 지도 위 마커 표시
 - 상황 신고 및 공유
+- 비회원 게시글 관리: 자신이 작성한 게시글 수정/삭제 가능
 - 실시간 댓글 시스템
 - 실시간 데이터 동기화
 - 오프라인 지원
@@ -37,29 +38,6 @@ npm install
 
 # 개발 서버 실행
 npm run dev
-```
-
-### 카카오맵 API 설정
-
-1. [카카오 디벨로퍼스](https://developers.kakao.com/)에서 앱 생성
-2. Web 플랫폼 추가 및 도메인 등록 (localhost:5173)
-3. JavaScript 키 발급
-4. `.env` 파일에 API 키 설정
-
-### Supabase 설정 (실시간 댓글 기능)
-
-1. [Supabase](https://supabase.com/) 프로젝트 생성
-2. SQL Editor에서 `database-schema.sql` 실행
-3. `.env` 파일에 설정 추가
-
-### 환경변수 설정
-
-`.env` 파일을 생성하고 다음 내용을 추가하세요:
-
-```env
-VITE_KAKAO_MAP_API_KEY=your_kakao_javascript_key
-VITE_SUPABASE_URL=your_supabase_project_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
 **참고사항:**
@@ -87,6 +65,7 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 5. **신고 완료**: 지도에 마커로 표시
 6. **마커 클릭**: 상세 정보 팝업 확인
 7. **댓글 작성**: 닉네임과 댓글 입력 (Supabase 설정 필요)
+8. **게시글 관리**: 자신이 작성한 게시글에 수정/삭제 버튼 표시
 
 ## 데이터베이스 스키마
 
@@ -97,6 +76,7 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 - description: 설명
 - type: 카테고리
 - lat, lng: 위치 좌표
+- author_key: 작성자 인증 키 (비회원 권한 관리)
 - created_at: 생성 시간
 
 ### comments 테이블
@@ -122,6 +102,31 @@ npm run build
 # 빌드 결과 미리보기
 npm run preview
 ```
+
+## 새로운 기능: 비회원 게시글 관리
+
+### 작동 방식
+
+- 게시글 작성 시 고유한 `author_key` 생성
+- 브라우저 로컬 스토리지에 작성자 키 저장
+- 자신이 작성한 게시글에만 수정/삭제 버튼 표시
+- 수정/삭제 시 `author_key`로 권한 검증
+
+### 데이터베이스 마이그레이션
+
+기존 데이터베이스에 새 필드를 추가하려면:
+
+```bash
+# Supabase SQL Editor에서 실행
+\i migrate-author-key.sql
+```
+
+### 기능 특징
+
+- 🔐 **보안**: 서버 측에서 `author_key` 검증
+- 📱 **사용자 친화적**: 로그인 없이도 게시글 관리 가능
+- 🔄 **실시간**: 수정/삭제 시 즉시 모든 사용자에게 반영
+- 💻 **브라우저 지원**: 로컬 스토리지 기반 권한 관리
 
 ## 향후 개선사항
 

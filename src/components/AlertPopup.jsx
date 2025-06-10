@@ -15,15 +15,21 @@ import {
   WifiOff,
   ChevronLeft,
   ChevronRight,
+  Edit3,
+  Trash2,
+  Key,
 } from "lucide-react";
 import {
   getComments,
   addComment,
   subscribeToComments,
+  deleteAlert,
+  updateAlert,
+  checkAuthorPermission,
 } from "../services/alertService";
 import { isSupabaseConnected } from "../lib/supabase";
 
-const AlertPopup = ({ alert, onClose }) => {
+const AlertPopup = ({ alert, onClose, onUpdate }) => {
   // alert가 배열인지 단일 객체인지 확인
   const isMultipleAlerts = Array.isArray(alert);
   const alerts = isMultipleAlerts ? alert : [alert];
@@ -37,6 +43,20 @@ const AlertPopup = ({ alert, onClose }) => {
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSupabaseOnline] = useState(isSupabaseConnected());
+
+  // 수정/삭제 관련 상태
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState({
+    title: "",
+    description: "",
+    type: "other",
+  });
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+
+  // 현재 사용자의 권한 확인
+  const hasAuthorPermission = checkAuthorPermission(currentAlert.id);
 
   useEffect(() => {
     if (!currentAlert?.id || !isSupabaseOnline) return;
@@ -100,10 +120,58 @@ const AlertPopup = ({ alert, onClose }) => {
       setNewComment("");
     } catch (error) {
       console.error("댓글 작성 실패:", error);
-      alert("댓글 작성에 실패했습니다. 다시 시도해주세요.");
+      window.alert("댓글 작성에 실패했습니다. 다시 시도해주세요.");
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // 삭제 핸들러
+  const handleDelete = async () => {
+    if (!hasAuthorPermission) return;
+
+    setIsDeleting(true);
+    try {
+      await deleteAlert(currentAlert.id, hasAuthorPermission);
+      window.alert("게시글이 삭제되었습니다.");
+      if (onUpdate) onUpdate();
+      onClose();
+    } catch (error) {
+      console.error("삭제 실패:", error);
+      window.alert("삭제에 실패했습니다. " + error.message);
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteModal(false);
+    }
+  };
+
+  // 수정 핸들러
+  const handleEdit = async (e) => {
+    e.preventDefault();
+    if (!hasAuthorPermission) return;
+
+    setIsEditing(true);
+    try {
+      await updateAlert(currentAlert.id, editForm, hasAuthorPermission);
+      window.alert("게시글이 수정되었습니다.");
+      if (onUpdate) onUpdate();
+      setShowEditModal(false);
+    } catch (error) {
+      console.error("수정 실패:", error);
+      window.alert("수정에 실패했습니다. " + error.message);
+    } finally {
+      setIsEditing(false);
+    }
+  };
+
+  // 수정 모달 열기
+  const openEditModal = () => {
+    setEditForm({
+      title: currentAlert.title,
+      description: currentAlert.description,
+      type: currentAlert.type,
+    });
+    setShowEditModal(true);
   };
 
   // 슬라이드 네비게이션
@@ -237,12 +305,37 @@ const AlertPopup = ({ alert, onClose }) => {
               <h2 className="font-bold text-gray-900 text-lg">
                 {currentAlert.title}
               </h2>
-              <span className="text-sm text-gray-500">
-                {getTypeLabel(currentAlert.type)}
+              <span className="text-sm text-gray-500 flex items-center space-x-2">
+                <span>{getTypeLabel(currentAlert.type)}</span>
+                {hasAuthorPermission && (
+                  <span className="flex items-center space-x-1 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                    <Key className="h-3 w-3" />
+                    <span>내가 작성</span>
+                  </span>
+                )}
               </span>
             </div>
           </div>
           <div className="flex items-center space-x-2">
+            {/* 수정/삭제 버튼 - 작성자만 표시 */}
+            {hasAuthorPermission && isSupabaseOnline && (
+              <div className="flex items-center space-x-1 mr-2">
+                <button
+                  onClick={openEditModal}
+                  className="p-2 hover:bg-blue-50 text-blue-600 rounded-full transition-colors"
+                  title="수정"
+                >
+                  <Edit3 className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setShowDeleteModal(true)}
+                  className="p-2 hover:bg-red-50 text-red-600 rounded-full transition-colors"
+                  title="삭제"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            )}
             {/* 슬라이드 인디케이터 - 여러 알림이 있을 때만 표시 */}
             {isMultipleAlerts && (
               <div className="flex items-center space-x-1 mr-4">
@@ -397,6 +490,139 @@ const AlertPopup = ({ alert, onClose }) => {
           </div>
         )}
       </div>
+
+      {/* 삭제 확인 모달 */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="p-3 bg-red-100 rounded-full">
+                <Trash2 className="h-5 w-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900">게시글 삭제</h3>
+                <p className="text-sm text-gray-500">
+                  이 작업은 되돌릴 수 없습니다.
+                </p>
+              </div>
+            </div>
+            <p className="text-gray-700 mb-6">
+              정말로 이 게시글을 삭제하시겠습니까?
+            </p>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                disabled={isDeleting}
+              >
+                취소
+              </button>
+              <button
+                onClick={handleDelete}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:bg-red-300"
+                disabled={isDeleting}
+              >
+                {isDeleting ? "삭제 중..." : "삭제"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 수정 모달 */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-3">
+                <div className="p-3 bg-blue-100 rounded-full">
+                  <Edit3 className="h-5 w-5 text-blue-600" />
+                </div>
+                <h3 className="font-bold text-gray-900">게시글 수정</h3>
+              </div>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                disabled={isEditing}
+              >
+                <X className="h-4 w-4 text-gray-400" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEdit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  제목
+                </label>
+                <input
+                  type="text"
+                  value={editForm.title}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, title: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  required
+                  disabled={isEditing}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  카테고리
+                </label>
+                <select
+                  value={editForm.type}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, type: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  disabled={isEditing}
+                >
+                  <option value="emergency">응급상황</option>
+                  <option value="noise">소음</option>
+                  <option value="traffic">교통</option>
+                  <option value="safety">안전</option>
+                  <option value="other">기타</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  상세 내용
+                </label>
+                <textarea
+                  value={editForm.description}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, description: e.target.value })
+                  }
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"
+                  required
+                  disabled={isEditing}
+                />
+              </div>
+
+              <div className="flex space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  disabled={isEditing}
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-blue-300"
+                  disabled={isEditing}
+                >
+                  {isEditing ? "수정 중..." : "수정"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

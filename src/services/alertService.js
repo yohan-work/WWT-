@@ -1,5 +1,10 @@
 import { supabase, TABLES, isSupabaseConnected } from "../lib/supabase";
 
+// 고유 키 생성 함수 (비회원 인증용)
+const generateAuthorKey = () => {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+};
+
 // 알림 생성
 export const createAlert = async (alertData) => {
   if (!isSupabaseConnected()) {
@@ -9,12 +14,16 @@ export const createAlert = async (alertData) => {
   }
 
   try {
+    // 고유 키 생성
+    const authorKey = generateAuthorKey();
+
     // location 객체를 lat, lng로 분리
     const { location, ...restData } = alertData;
     const dataToInsert = {
       ...restData,
       lat: location?.lat,
       lng: location?.lng,
+      author_key: authorKey,
       created_at: new Date().toISOString(),
     };
 
@@ -26,15 +35,99 @@ export const createAlert = async (alertData) => {
 
     if (error) throw error;
 
+    // 반환할 때는 location 객체를 다시 생성하고 author_key도 포함
+    const result = {
+      ...data,
+      location: data.lat && data.lng ? { lat: data.lat, lng: data.lng } : null,
+    };
+
+    // 작성자 키를 로컬 스토리지에 저장
+    const authorKeys = JSON.parse(localStorage.getItem("authorKeys") || "{}");
+    authorKeys[data.id] = authorKey;
+    localStorage.setItem("authorKeys", JSON.stringify(authorKeys));
+
+    return result;
+  } catch (error) {
+    console.error("알림 생성 오류:", error);
+    throw error;
+  }
+};
+
+// 알림 수정
+export const updateAlert = async (alertId, alertData, authorKey) => {
+  if (!isSupabaseConnected()) {
+    throw new Error(
+      "Supabase가 설정되지 않았습니다. 오프라인 모드로 작동합니다."
+    );
+  }
+
+  try {
+    // location 객체를 lat, lng로 분리
+    const { location, ...restData } = alertData;
+    const dataToUpdate = {
+      ...restData,
+      lat: location?.lat,
+      lng: location?.lng,
+    };
+
+    const { data, error } = await supabase
+      .from(TABLES.ALERTS)
+      .update(dataToUpdate)
+      .eq("id", alertId)
+      .eq("author_key", authorKey)
+      .select()
+      .single();
+
+    if (error) throw error;
+    if (!data) throw new Error("권한이 없거나 게시글을 찾을 수 없습니다.");
+
     // 반환할 때는 location 객체를 다시 생성
     return {
       ...data,
       location: data.lat && data.lng ? { lat: data.lat, lng: data.lng } : null,
     };
   } catch (error) {
-    console.error("알림 생성 오류:", error);
+    console.error("알림 수정 오류:", error);
     throw error;
   }
+};
+
+// 알림 삭제
+export const deleteAlert = async (alertId, authorKey) => {
+  if (!isSupabaseConnected()) {
+    throw new Error(
+      "Supabase가 설정되지 않았습니다. 오프라인 모드로 작동합니다."
+    );
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from(TABLES.ALERTS)
+      .delete()
+      .eq("id", alertId)
+      .eq("author_key", authorKey)
+      .select()
+      .single();
+
+    if (error) throw error;
+    if (!data) throw new Error("권한이 없거나 게시글을 찾을 수 없습니다.");
+
+    // 로컬 스토리지에서 author key 제거
+    const authorKeys = JSON.parse(localStorage.getItem("authorKeys") || "{}");
+    delete authorKeys[alertId];
+    localStorage.setItem("authorKeys", JSON.stringify(authorKeys));
+
+    return data;
+  } catch (error) {
+    console.error("알림 삭제 오류:", error);
+    throw error;
+  }
+};
+
+// 작성자 권한 확인
+export const checkAuthorPermission = (alertId) => {
+  const authorKeys = JSON.parse(localStorage.getItem("authorKeys") || "{}");
+  return authorKeys[alertId] || null;
 };
 
 // 모든 알림 조회
