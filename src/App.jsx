@@ -91,9 +91,11 @@ function App() {
 
   const addAlert = async (alertData) => {
     try {
+      const { imageUrl, ...restData } = alertData;
       const alertWithLocation = {
-        ...alertData,
+        ...restData,
         location: userLocation,
+        image_url: imageUrl, // 데이터베이스 필드명에 맞게 변경
       };
 
       if (isOnline) {

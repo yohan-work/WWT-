@@ -367,6 +367,20 @@ const AlertPopup = ({ alert, onClose, onUpdate }) => {
         <div className="flex-1 overflow-y-auto transition-all duration-300 ease-in-out">
           {/* 알림 내용 */}
           <div className="p-6 space-y-4">
+            {/* 이미지 표시 */}
+            {currentAlert.image_url && (
+              <div className="mb-4">
+                <img
+                  src={currentAlert.image_url}
+                  alt="첨부 이미지"
+                  className="w-full h-48 object-cover rounded-xl"
+                  onError={(e) => {
+                    e.target.style.display = "none";
+                  }}
+                />
+              </div>
+            )}
+
             <div>
               <h3 className="text-sm font-medium text-gray-700 mb-2">
                 상세 내용

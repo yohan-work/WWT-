@@ -5,6 +5,100 @@ const generateAuthorKey = () => {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
 };
 
+// 이미지 압축 함수
+const compressImage = (file, maxWidth = 800, quality = 0.8) => {
+  return new Promise((resolve) => {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    const img = new Image();
+
+    img.onload = () => {
+      // 비율 유지하면서 최대 너비로 리사이즈
+      const ratio = Math.min(maxWidth / img.width, maxWidth / img.height);
+      canvas.width = img.width * ratio;
+      canvas.height = img.height * ratio;
+
+      // 이미지 그리기
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      // Blob으로 변환
+      canvas.toBlob(resolve, "image/jpeg", quality);
+    };
+
+    img.src = URL.createObjectURL(file);
+  });
+};
+
+// 이미지 업로드 함수
+export const uploadImage = async (file) => {
+  if (!isSupabaseConnected()) {
+    throw new Error(
+      "Supabase가 설정되지 않았습니다. 이미지 업로드를 사용할 수 없습니다."
+    );
+  }
+
+  try {
+    // 파일 크기 체크 (5MB 제한)
+    if (file.size > 5 * 1024 * 1024) {
+      throw new Error("파일 크기는 5MB 이하여야 합니다.");
+    }
+
+    // 이미지 파일인지 확인
+    if (!file.type.startsWith("image/")) {
+      throw new Error("이미지 파일만 업로드 가능합니다.");
+    }
+
+    // 이미지 압축
+    const compressedFile = await compressImage(file);
+
+    // 고유 파일명 생성
+    const fileExt = file.name.split(".").pop();
+    const fileName = `${Date.now()}_${Math.random()
+      .toString(36)
+      .substring(2)}.${fileExt}`;
+    const filePath = `alerts/${fileName}`;
+
+    // Supabase Storage에 업로드
+    const { data, error } = await supabase.storage
+      .from("images")
+      .upload(filePath, compressedFile, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+    if (error) throw error;
+
+    // 공개 URL 가져오기
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("images").getPublicUrl(filePath);
+
+    return publicUrl;
+  } catch (error) {
+    console.error("이미지 업로드 오류:", error);
+    throw error;
+  }
+};
+
+// 이미지 삭제 함수
+export const deleteImage = async (imageUrl) => {
+  if (!isSupabaseConnected() || !imageUrl) return;
+
+  try {
+    // URL에서 파일 경로 추출
+    const url = new URL(imageUrl);
+    const pathSegments = url.pathname.split("/");
+    const filePath = pathSegments.slice(-2).join("/"); // alerts/filename.jpg
+
+    const { error } = await supabase.storage.from("images").remove([filePath]);
+
+    if (error) throw error;
+  } catch (error) {
+    console.error("이미지 삭제 오류:", error);
+    // 이미지 삭제 실패는 중요하지 않으므로 에러를 던지지 않음
+  }
+};
+
 // 알림 생성
 export const createAlert = async (alertData) => {
   if (!isSupabaseConnected()) {
@@ -101,6 +195,23 @@ export const deleteAlert = async (alertId, authorKey) => {
   }
 
   try {
+    // 먼저 알림 데이터 조회 (이미지 URL 확인용)
+    const { data: alertData, error: fetchError } = await supabase
+      .from(TABLES.ALERTS)
+      .select("image_url")
+      .eq("id", alertId)
+      .eq("author_key", authorKey)
+      .single();
+
+    if (fetchError) throw fetchError;
+    if (!alertData) throw new Error("권한이 없거나 게시글을 찾을 수 없습니다.");
+
+    // 이미지가 있다면 삭제
+    if (alertData.image_url) {
+      await deleteImage(alertData.image_url);
+    }
+
+    // 알림 삭제
     const { data, error } = await supabase
       .from(TABLES.ALERTS)
       .delete()
