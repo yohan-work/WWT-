@@ -1,9 +1,8 @@
 # 동네 알림이
 
 우리 동네 실시간 상황 공유 플랫폼
-
+<img width="1246" alt="image" src="https://github.com/user-attachments/assets/8d2a3a70-5ab7-4471-917b-ed8ce35bc510" />
 <img width="645" alt="image" src="https://github.com/user-attachments/assets/dbcfa7fd-6892-44e2-afe9-a5448cc6aa24" />
-<img width="1721" alt="image" src="https://github.com/user-attachments/assets/7cae07cd-e14c-4945-9acd-cd23281e488b" />
 <img width="496" alt="image" src="https://github.com/user-attachments/assets/fbf5a0b9-893a-4368-ba56-720662ad276e" />
 
 
