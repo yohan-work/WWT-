@@ -90,7 +90,7 @@ const ReportModal = ({ onClose, onSubmit }) => {
           imageUrl,
         };
 
-        onSubmit(submitData);
+        await onSubmit(submitData);
       } catch (error) {
         console.error("이미지 업로드 실패:", error);
         window.alert("이미지 업로드에 실패했습니다: " + error.message);
@@ -121,7 +121,8 @@ const ReportModal = ({ onClose, onSubmit }) => {
             <label className="block text-sm font-medium text-gray-700 mb-3">
               어떤 상황인가요?
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="overflow-x-auto px-1 pb-2 snap-x snap-mandatory">
+              <div className="flex gap-2 px-1">
               {alertTypes.map((type) => {
                 const Icon = type.icon;
                 return (
@@ -129,23 +130,24 @@ const ReportModal = ({ onClose, onSubmit }) => {
                     key={type.id}
                     type="button"
                     onClick={() => setFormData({ ...formData, type: type.id })}
-                    className={`p-4 rounded-xl border-2 transition-all ${
+                    className={`snap-start shrink-0 w-24 h-24 p-3 rounded-xl border-2 transition-all ${
                       formData.type === type.id
                         ? "border-primary-500 bg-primary-50"
                         : "border-gray-200 hover:border-gray-300"
                     }`}
                   >
                     <div
-                      className={`w-8 h-8 rounded-full ${type.color} flex items-center justify-center mx-auto mb-2`}
+                      className={`w-7 h-7 rounded-full ${type.color} flex items-center justify-center mx-auto mb-2`}
                     >
-                      <Icon className="h-4 w-4 text-white" />
+                      <Icon className="h-3.5 w-3.5 text-white" />
                     </div>
-                    <span className="text-sm font-medium text-gray-700">
+                    <span className="text-xs font-medium text-gray-700">
                       {type.label}
                     </span>
                   </button>
                 );
               })}
+              </div>
             </div>
           </div>
 

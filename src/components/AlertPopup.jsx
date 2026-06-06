@@ -8,7 +8,6 @@ import {
   MoreHorizontal,
   Clock,
   MapPin,
-  MessageSquare,
   Send,
   User,
   Wifi,
@@ -18,14 +17,22 @@ import {
   Edit3,
   Trash2,
   Key,
+  CheckCircle,
+  Flag,
+  ImagePlus,
+  Radio,
 } from "lucide-react";
 import {
-  getComments,
-  addComment,
-  subscribeToComments,
   deleteAlert,
   updateAlert,
   checkAuthorPermission,
+  getAlertVerifications,
+  addAlertVerification,
+  subscribeToAlertVerifications,
+  getOrCreateAlertChatRoom,
+  getChatMessages,
+  addChatMessage,
+  subscribeToChatMessages,
 } from "../services/alertService";
 import { isSupabaseConnected } from "../lib/supabase";
 
@@ -36,12 +43,18 @@ const AlertPopup = ({ alert, onClose, onUpdate }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const currentAlert = alerts[currentIndex];
 
-  const [comments, setComments] = useState([]);
-  const [newComment, setNewComment] = useState("");
+  const [chatRoom, setChatRoom] = useState(null);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [newChatMessage, setNewChatMessage] = useState("");
+  const [isSendingChat, setIsSendingChat] = useState(false);
+  const [verificationState, setVerificationState] = useState({
+    counts: { confirm: 0, dispute: 0, evidence: 0 },
+    myTypes: [],
+  });
+  const [isVerifying, setIsVerifying] = useState(false);
   const [userName, setUserName] = useState(
     localStorage.getItem("username") || ""
   );
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSupabaseOnline] = useState(isSupabaseConnected());
 
   // 수정/삭제 관련 상태
@@ -61,13 +74,36 @@ const AlertPopup = ({ alert, onClose, onUpdate }) => {
   useEffect(() => {
     if (!currentAlert?.id || !isSupabaseOnline) return;
 
-    // 댓글 불러오기
-    loadComments();
+    loadVerifications();
+    loadChatRoom();
 
-    // 실시간 댓글 구독
-    const subscription = subscribeToComments(
+    const verificationSubscription = subscribeToAlertVerifications(
       currentAlert.id,
-      handleCommentChange
+      loadVerifications
+    );
+
+    return () => {
+      if (verificationSubscription) {
+        verificationSubscription.unsubscribe();
+      }
+    };
+  }, [currentAlert?.id, isSupabaseOnline]);
+
+  // 슬라이드 변경 시 검증과 현장 대화도 다시 로드
+  useEffect(() => {
+    if (currentAlert?.id && isSupabaseOnline) {
+      loadVerifications();
+      loadChatRoom();
+    }
+  }, [currentIndex]);
+
+  useEffect(() => {
+    if (!chatRoom?.id || !isSupabaseOnline) return;
+
+    loadChatMessages(chatRoom.id);
+    const subscription = subscribeToChatMessages(
+      chatRoom.id,
+      handleChatMessageChange
     );
 
     return () => {
@@ -75,54 +111,85 @@ const AlertPopup = ({ alert, onClose, onUpdate }) => {
         subscription.unsubscribe();
       }
     };
-  }, [currentAlert?.id, isSupabaseOnline]);
+  }, [chatRoom?.id, isSupabaseOnline]);
 
-  // 슬라이드 변경 시 댓글도 다시 로드
-  useEffect(() => {
-    if (currentAlert?.id && isSupabaseOnline) {
-      loadComments();
-    }
-  }, [currentIndex]);
-
-  const loadComments = async () => {
+  const loadVerifications = async () => {
     try {
-      const commentsData = await getComments(currentAlert.id);
-      setComments(commentsData);
+      const data = await getAlertVerifications(currentAlert.id);
+      setVerificationState(data);
     } catch (error) {
-      console.error("댓글 로드 실패:", error);
+      console.error("검증 정보 로드 실패:", error);
     }
   };
 
-  const handleCommentChange = (payload) => {
+  const loadChatRoom = async () => {
+    try {
+      const room = await getOrCreateAlertChatRoom(currentAlert);
+      setChatRoom(room);
+    } catch (error) {
+      console.error("채팅방 로드 실패:", error);
+      setChatRoom(null);
+      setChatMessages([]);
+    }
+  };
+
+  const loadChatMessages = async (roomId) => {
+    try {
+      const messages = await getChatMessages(roomId);
+      setChatMessages(messages);
+    } catch (error) {
+      console.error("채팅 메시지 로드 실패:", error);
+    }
+  };
+
+  const handleChatMessageChange = (payload) => {
     if (payload.eventType === "INSERT") {
-      setComments((prev) => [...prev, payload.new]);
-    } else if (payload.eventType === "DELETE") {
-      setComments((prev) => prev.filter((c) => c.id !== payload.old.id));
+      setChatMessages((prev) => [...prev, payload.new]);
+    } else if (payload.eventType === "DELETE" || payload.eventType === "UPDATE") {
+      loadChatMessages(chatRoom.id);
     }
   };
 
-  const handleSubmitComment = async (e) => {
+  const handleVerification = async (type) => {
+    if (!isSupabaseOnline || isVerifying) return;
+
+    setIsVerifying(true);
+    try {
+      await addAlertVerification(currentAlert.id, type);
+      await loadVerifications();
+    } catch (error) {
+      console.error("검증 등록 실패:", error);
+      window.alert("검증 등록에 실패했습니다. " + error.message);
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleSubmitChatMessage = async (e) => {
     e.preventDefault();
     if (
-      !newComment.trim() ||
+      !newChatMessage.trim() ||
       !userName.trim() ||
-      isSubmitting ||
+      !chatRoom?.id ||
+      isSendingChat ||
       !isSupabaseOnline
     )
       return;
 
-    setIsSubmitting(true);
+    setIsSendingChat(true);
     try {
-      // 사용자명 저장
       localStorage.setItem("username", userName);
-
-      await addComment(currentAlert.id, newComment.trim(), userName.trim());
-      setNewComment("");
+      await addChatMessage(
+        chatRoom.id,
+        newChatMessage.trim(),
+        userName.trim()
+      );
+      setNewChatMessage("");
     } catch (error) {
-      console.error("댓글 작성 실패:", error);
-      window.alert("댓글 작성에 실패했습니다. 다시 시도해주세요.");
+      console.error("채팅 작성 실패:", error);
+      window.alert("채팅 작성에 실패했습니다. 다시 시도해주세요.");
     } finally {
-      setIsSubmitting(false);
+      setIsSendingChat(false);
     }
   };
 
@@ -266,6 +333,24 @@ const AlertPopup = ({ alert, onClose, onUpdate }) => {
     return `${Math.floor(diff / 86400)}일 전`;
   };
 
+  const getVerificationStatus = () => {
+    const { confirm, dispute, evidence } = verificationState.counts;
+    if (dispute > confirm && dispute > 0) return "반박 있음";
+    if (confirm > 0) return "현장 확인";
+    if (evidence > 0 || currentAlert.image_url) return "증거 있음";
+    return "미확인";
+  };
+
+  const getVerificationStatusClass = () => {
+    const status = getVerificationStatus();
+    if (status === "현장 확인") return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    if (status === "반박 있음") return "bg-rose-50 text-rose-700 border-rose-200";
+    if (status === "증거 있음") return "bg-blue-50 text-blue-700 border-blue-200";
+    return "bg-gray-50 text-gray-600 border-gray-200";
+  };
+
+  const isMyVerification = (type) => verificationState.myTypes.includes(type);
+
   const Icon = getAlertIcon(currentAlert.type);
   const colorClass = getAlertColor(currentAlert.type);
 
@@ -296,30 +381,30 @@ const AlertPopup = ({ alert, onClose, onUpdate }) => {
         )}
 
         {/* 헤더 */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-100">
-          <div className="flex items-center space-x-3">
-            <div className={`p-3 rounded-full border-2 ${colorClass}`}>
+        <div className="flex flex-col gap-4 p-4 sm:p-6 border-b border-gray-100 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className={`shrink-0 p-3 rounded-full border-2 ${colorClass}`}>
               <Icon className="h-5 w-5" />
             </div>
-            <div>
-              <h2 className="font-bold text-gray-900 text-lg">
+            <div className="min-w-0 flex-1">
+              <h2 className="break-words font-bold text-gray-900 text-lg leading-tight">
                 {currentAlert.title}
               </h2>
-              <span className="text-sm text-gray-500 flex items-center space-x-2">
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-500">
                 <span>{getTypeLabel(currentAlert.type)}</span>
                 {hasAuthorPermission && (
-                  <span className="flex items-center space-x-1 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                  <span className="inline-flex items-center gap-1 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
                     <Key className="h-3 w-3" />
                     <span>내가 작성</span>
                   </span>
                 )}
-              </span>
+              </div>
             </div>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex shrink-0 items-center justify-end gap-2">
             {/* 수정/삭제 버튼 - 작성자만 표시 */}
             {hasAuthorPermission && isSupabaseOnline && (
-              <div className="flex items-center space-x-1 mr-2">
+              <div className="flex items-center gap-1">
                 <button
                   onClick={openEditModal}
                   className="p-2 hover:bg-blue-50 text-blue-600 rounded-full transition-colors"
@@ -338,7 +423,7 @@ const AlertPopup = ({ alert, onClose, onUpdate }) => {
             )}
             {/* 슬라이드 인디케이터 - 여러 알림이 있을 때만 표시 */}
             {isMultipleAlerts && (
-              <div className="flex items-center space-x-1 mr-4">
+              <div className="flex items-center gap-1">
                 <span className="text-xs text-gray-500">
                   {currentIndex + 1}/{alerts.length}
                 </span>
@@ -391,10 +476,10 @@ const AlertPopup = ({ alert, onClose, onUpdate }) => {
             </div>
 
             {/* 위치 및 시간 정보 */}
-            <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-              <div className="flex items-center space-x-2 text-sm text-gray-500">
-                <MapPin className="h-4 w-4" />
-                <span>
+            <div className="flex flex-col gap-2 pt-4 border-t border-gray-100 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-center gap-2 text-sm text-gray-500">
+                <MapPin className="h-4 w-4 shrink-0" />
+                <span className="truncate">
                   {currentAlert.location
                     ? `${currentAlert.location.lat.toFixed(
                         4
@@ -402,8 +487,8 @@ const AlertPopup = ({ alert, onClose, onUpdate }) => {
                     : "위치 정보 없음"}
                 </span>
               </div>
-              <div className="flex items-center space-x-2 text-sm text-gray-500">
-                <Clock className="h-4 w-4" />
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <Clock className="h-4 w-4 shrink-0" />
                 <span>
                   {getTimeAgo(
                     currentAlert.timestamp || currentAlert.created_at
@@ -411,15 +496,86 @@ const AlertPopup = ({ alert, onClose, onUpdate }) => {
                 </span>
               </div>
             </div>
+
+            {/* 검증 상태 */}
+            <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+              <div className="flex flex-col gap-3 mb-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-gray-900">
+                    커뮤니티 검증
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    근처 사람들이 확인하고 반박한 신호입니다.
+                  </p>
+                </div>
+                <span
+                  className={`w-fit shrink-0 border rounded-full px-3 py-1 text-xs font-semibold ${getVerificationStatusClass()}`}
+                >
+                  {getVerificationStatus()}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleVerification("confirm")}
+                  disabled={!isSupabaseOnline || isVerifying}
+                  className={`rounded-lg border px-2 py-3 text-sm transition-colors ${
+                    isMyVerification("confirm")
+                      ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                      : "border-gray-200 bg-white text-gray-700 hover:bg-gray-100"
+                  } disabled:cursor-not-allowed disabled:opacity-50`}
+                >
+                  <CheckCircle className="mx-auto mb-1 h-4 w-4" />
+                  <span className="block font-medium">확인</span>
+                  <span className="text-xs">
+                    {verificationState.counts.confirm}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleVerification("dispute")}
+                  disabled={!isSupabaseOnline || isVerifying}
+                  className={`rounded-lg border px-2 py-3 text-sm transition-colors ${
+                    isMyVerification("dispute")
+                      ? "border-rose-300 bg-rose-50 text-rose-700"
+                      : "border-gray-200 bg-white text-gray-700 hover:bg-gray-100"
+                  } disabled:cursor-not-allowed disabled:opacity-50`}
+                >
+                  <Flag className="mx-auto mb-1 h-4 w-4" />
+                  <span className="block font-medium">반박</span>
+                  <span className="text-xs">
+                    {verificationState.counts.dispute}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleVerification("evidence")}
+                  disabled={!isSupabaseOnline || isVerifying}
+                  className={`rounded-lg border px-2 py-3 text-sm transition-colors ${
+                    isMyVerification("evidence")
+                      ? "border-blue-300 bg-blue-50 text-blue-700"
+                      : "border-gray-200 bg-white text-gray-700 hover:bg-gray-100"
+                  } disabled:cursor-not-allowed disabled:opacity-50`}
+                >
+                  <ImagePlus className="mx-auto mb-1 h-4 w-4" />
+                  <span className="block font-medium">증거</span>
+                  <span className="text-xs">
+                    {verificationState.counts.evidence +
+                      (currentAlert.image_url ? 1 : 0)}
+                  </span>
+                </button>
+              </div>
+            </div>
           </div>
 
-          {/* 댓글 섹션 */}
+          {/* 현장 대화 섹션 */}
           <div className="border-t border-gray-100">
             <div className="p-4">
               <div className="flex items-center space-x-2 mb-4">
-                <MessageSquare className="h-5 w-5 text-gray-600" />
+                <Radio className="h-5 w-5 text-gray-600" />
                 <h3 className="font-medium text-gray-900">
-                  댓글 {comments.length}개
+                  현장 대화 {chatMessages.length}개
                 </h3>
                 {isSupabaseOnline ? (
                   <Wifi className="h-4 w-4 text-green-500" />
@@ -428,81 +584,70 @@ const AlertPopup = ({ alert, onClose, onUpdate }) => {
                 )}
               </div>
 
-              {!isSupabaseOnline && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
-                  <p className="text-sm text-yellow-800">
-                    💡 댓글 기능을 사용하려면 Supabase 설정이 필요합니다.
-                  </p>
-                </div>
-              )}
-
-              {/* 댓글 목록 */}
-              <div className="space-y-3 mb-4 max-h-40 overflow-y-auto">
-                {comments.length === 0 ? (
+              <div className="space-y-3 mb-4 max-h-48 overflow-y-auto">
+                {chatMessages.length === 0 ? (
                   <p className="text-center text-gray-500 text-sm py-4">
                     {isSupabaseOnline
-                      ? "첫 번째 댓글을 작성해보세요!"
-                      : "댓글 기능이 비활성화되었습니다."}
+                      ? "이 위치의 실시간 대화를 시작해보세요."
+                      : "현장 대화가 비활성화되었습니다."}
                   </p>
                 ) : (
-                  comments.map((comment) => (
-                    <div key={comment.id} className="bg-gray-50 rounded-lg p-3">
+                  chatMessages.map((message) => (
+                    <div key={message.id} className="rounded-lg bg-slate-50 p-3">
                       <div className="flex items-center space-x-2 mb-1">
                         <User className="h-4 w-4 text-gray-500" />
                         <span className="text-sm font-medium text-gray-700">
-                          {comment.user_name}
+                          {message.user_name}
                         </span>
                         <span className="text-xs text-gray-400">
-                          {getTimeAgo(comment.created_at)}
+                          {getTimeAgo(message.created_at)}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-900">{comment.content}</p>
+                      <p className="text-sm text-gray-900">{message.content}</p>
                     </div>
                   ))
                 )}
               </div>
+
+              {isSupabaseOnline && (
+                <form onSubmit={handleSubmitChatMessage} className="space-y-3">
+                  <input
+                    type="text"
+                    value={userName}
+                    onChange={(e) => setUserName(e.target.value)}
+                    placeholder="닉네임"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                    required
+                  />
+                  <div className="flex space-x-2">
+                    <input
+                      type="text"
+                      value={newChatMessage}
+                      onChange={(e) => setNewChatMessage(e.target.value)}
+                      placeholder="현장 상황을 공유하세요..."
+                      className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                      disabled={isSendingChat || !chatRoom}
+                      required
+                    />
+                    <button
+                      type="submit"
+                      disabled={
+                        !newChatMessage.trim() ||
+                        !userName.trim() ||
+                        isSendingChat ||
+                        !chatRoom
+                      }
+                      className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center space-x-1"
+                    >
+                      <Send className="h-4 w-4" />
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         </div>
 
-        {/* 댓글 작성 폼 */}
-        {isSupabaseOnline && (
-          <div className="border-t border-gray-100 p-4">
-            <form onSubmit={handleSubmitComment} className="space-y-3">
-              {/* 사용자명 입력 */}
-              <input
-                type="text"
-                value={userName}
-                onChange={(e) => setUserName(e.target.value)}
-                placeholder="닉네임"
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-                required
-              />
-
-              {/* 댓글 입력 */}
-              <div className="flex space-x-2">
-                <input
-                  type="text"
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  placeholder="댓글을 입력하세요..."
-                  className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-                  disabled={isSubmitting}
-                  required
-                />
-                <button
-                  type="submit"
-                  disabled={
-                    !newComment.trim() || !userName.trim() || isSubmitting
-                  }
-                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center space-x-1"
-                >
-                  <Send className="h-4 w-4" />
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
       </div>
 
       {/* 삭제 확인 모달 */}
