@@ -1,149 +1,95 @@
 # 동네 알림이
 
-우리 동네 실시간 상황 공유 플랫폼
+위치 기반 실시간 상황 공유 MVP입니다.  
+SNS의 팔로우 관계가 아니라, **지금 내 주변에서 일어나는 상황**을 지도와 거리 기준으로 빠르게 확인하는 것을 목표로 합니다.
 
-<img width="1246" alt="image" src="https://github.com/user-attachments/assets/8d2a3a70-5ab7-4471-917b-ed8ce35bc510" />
-<img width="645" alt="image" src="https://github.com/user-attachments/assets/dbcfa7fd-6892-44e2-afe9-a5448cc6aa24" />
-<img width="496" alt="image" src="https://github.com/user-attachments/assets/fbf5a0b9-893a-4368-ba56-720662ad276e" />
+## 문제의식
 
-## 프로젝트 소개
+사이렌 소리는 들리는데 무슨 일인지 알기 어렵고, 교통 정체나 안전 이슈는 내가 그 장소에 도착한 뒤에야 알게 되는 경우가 많습니다.  
+동네 알림이는 위치와 시간을 중심으로 제보를 모아, 주변 상황을 더 빠르게 파악할 수 있는지 검증하는 실험입니다.
 
-사이렌 소리나 기타 동네 상황, 현재 위치에서 공유하고 싶은 상황을 지도 위에서 실시간으로 공유할 수 있는 웹 애플리케이션입니다.
+## 현재 MVP 기능
 
-### 핵심 기능
+- 현재 위치 기반 지도 표시
+- 상황 제보 및 빠른 제보
+- 이미지 첨부 및 자동 압축
+- 내 주변 상황 모달: 거리/시간 기준 정렬, 카테고리 필터
+- 지도 마커 군집화
+- 제보 상세 팝업
+- 현장 대화
+- 커뮤니티 검증: 확인, 반박, 증거
+- 상황 상태: 진행중, 확인됨, 주의필요, 해결됨
+- 반경 기반 앱 내 알림함
+- 비회원 작성자 키 기반 수정/삭제
+- 개인정보처리방침, 위치정보 이용약관, 이용약관
 
-- GPS 기반 위치 확인
-- 지도 위 마커 표시
-- 상황 신고 및 공유
-- 비회원 게시글 관리: 자신이 작성한 게시글 수정/삭제 가능
-- 이미지 첨부: 게시글에 사진 첨부 가능 (자동 압축)
-- 실시간 댓글 시스템
-- 실시간 데이터 동기화
-- 오프라인 지원
+## 중요한 안내
 
-### 상황 카테고리
+이 프로젝트는 MVP입니다.
 
-- 응급상황
-- 소음
-- 교통
-- 안전
-- 기타
-
-## 시작하기
-
-### 개발 환경 실행
-
-```bash
-# 패키지 설치
-npm install
-
-# 개발 서버 실행
-npm run dev
-```
-
-참고사항:
-
-- 카카오맵: 하루 300,000건 무료 호출 가능
-- Supabase: 무료 티어에서 실시간 데이터베이스 제공
-- 환경변수 미설정 시 오프라인 모드로 작동
+- 응급상황은 반드시 112, 119 등 공식 기관에 먼저 신고해야 합니다.
+- 사용자 제보 기반 정보이므로 공식 정보가 아닙니다.
+- 차량번호, 얼굴, 실명, 전화번호, 정확한 주소 등 타인의 개인정보를 올리면 안 됩니다.
+- 위치정보 기반 공개 서비스로 운영하기 전에는 위치정보 관련 신고/법무 검토가 필요합니다.
 
 ## 기술 스택
 
-- Frontend: React 18, Vite
-- Styling: Tailwind CSS
-- Icons: Lucide React
-- Maps: 카카오맵 API
-- Database: Supabase (PostgreSQL)
-- Realtime: Supabase Realtime
-- Offline: Local Storage 백업
+- React 18
+- Vite
+- Tailwind CSS
+- Lucide React
+- Kakao Maps JavaScript API
+- Supabase Database, Realtime, Storage
 
-## 사용법
+## 환경변수
 
-1. 위치 권한 허용: 브라우저에서 위치 접근 허용
-2. 상황 신고: 오른쪽 하단 + 버튼 클릭
-3. 카테고리 선택: 적절한 상황 유형 선택
-4. 내용 작성: 제목과 상세 설명 입력
-5. 신고 완료: 지도에 마커로 표시
-6. 마커 클릭: 상세 정보 팝업 확인
-7. 댓글 작성: 닉네임과 댓글 입력 (Supabase 설정 필요)
-8. 게시글 관리: 자신이 작성한 게시글에 수정/삭제 버튼 표시
+`.env`에 아래 값을 설정합니다.
 
-## 데이터베이스 스키마
+```env
+VITE_KAKAO_MAP_API_KEY=
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
+```
 
-### alerts 테이블
+Kakao Developers에서는 JavaScript 키를 사용합니다.  
+Supabase는 `Project URL`과 `anon public` 키를 사용하며, `service_role` 키는 프론트엔드에 넣지 않습니다.
 
-- id: Primary Key
-- title: 제목
-- description: 설명
-- type: 카테고리
-- lat, lng: 위치 좌표
-- author_key: 작성자 인증 키 (비회원 권한 관리)
-- image_url: 첨부 이미지 URL
-- created_at: 생성 시간
+## Supabase 설정
 
-### comments 테이블
+Supabase SQL Editor에서 아래 파일을 실행합니다.
 
-- id: Primary Key
-- alert_id: 알림 ID (Foreign Key)
-- content: 댓글 내용
-- user_name: 사용자 닉네임
-- created_at: 생성 시간
+```sql
+-- supabase-app-setup.sql
+```
 
-## 실시간 기능
+데모 데이터가 필요하면 아래 파일을 추가 실행합니다.
 
-- 실시간 알림 동기화: 새로운 신고가 즉시 모든 사용자에게 표시
-- 실시간 댓글: 댓글 작성 시 즉시 다른 사용자에게 표시
-- 오프라인 지원: 네트워크 연결이 없어도 로컬 스토리지로 작동
+```sql
+-- seed-demo-alerts.sql
+```
 
-## 빌드 및 배포
+## 개발 실행
 
 ```bash
-# 프로덕션 빌드
-npm run build
+npm install
+npm run dev
+```
 
-# 빌드 결과 미리보기
+## 빌드
+
+```bash
+npm run build
 npm run preview
 ```
 
-## 새로운 기능: 비회원 게시글 관리
+## 피드백 받고 싶은 부분
 
-### 작동 방식
+- 위치 기반 실시간 상황 공유가 실제로 필요한 문제인지
+- 제보/검증/현장 대화 흐름이 직관적인지
+- 허위정보, 명예훼손, 개인정보 노출을 줄이기 위해 어떤 장치가 더 필요한지
+- 정식 서비스 전에 가장 먼저 보완해야 할 리스크가 무엇인지
 
-- 게시글 작성 시 고유한 `author_key` 생성
-- 브라우저 로컬 스토리지에 작성자 키 저장
-- 자신이 작성한 게시글에만 수정/삭제 버튼 표시
-- 수정/삭제 시 `author_key`로 권한 검증
+## Contact
 
-### 데이터베이스 마이그레이션
-
-기존 데이터베이스에 새 필드를 추가하려면:
-
-```bash
-# Supabase SQL Editor에서 실행
-\i migrate-author-key.sql
-```
-
-### 기능 특징
-
-- 보안: 서버 측에서 `author_key` 검증
-- 사용자 친화적: 로그인 없이도 게시글 관리 가능
-- 실시간: 수정/삭제 시 즉시 모든 사용자에게 반영
-- 브라우저 지원: 로컬 스토리지 기반 권한 관리
-
-## 새로운 기능: 이미지 첨부
-
-### 기능 특징
-
-- 이미지 업로드: 게시글에 사진 첨부 가능
-- 자동 압축: 800px 최대 너비로 자동 리사이즈
-- 용량 제한: 5MB 이하 파일만 업로드 가능
-- 미리보기: 업로드 전 이미지 미리보기 제공
-- 이미지 관리: 게시글 삭제 시 이미지도 자동 삭제
-
-### Supabase Storage 설정
-
-Private.
-
----
-
-Yohan Choi.
+Yohan Choi  
+businessyh0312@gmail.com

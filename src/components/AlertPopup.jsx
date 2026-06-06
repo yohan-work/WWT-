@@ -397,9 +397,9 @@ const AlertPopup = ({ alert, onClose, onUpdate }) => {
   const colorClass = getAlertColor(currentAlert.type);
 
   return (
-    <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50 p-4 sm:p-6">
       <div
-        className="bg-white rounded-3xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-hidden flex flex-col relative"
+        className="relative flex max-h-[85dvh] w-full max-w-lg flex-col overflow-hidden rounded-3xl bg-white shadow-2xl sm:max-h-[90vh]"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -423,7 +423,16 @@ const AlertPopup = ({ alert, onClose, onUpdate }) => {
         )}
 
         {/* 헤더 */}
-        <div className="flex flex-col gap-4 p-4 sm:p-6 border-b border-gray-100 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative flex flex-col gap-4 border-b border-gray-100 p-4 pr-16 sm:flex-row sm:items-center sm:justify-between sm:p-6 sm:pr-20">
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute right-3 top-3 z-20 rounded-full bg-white p-2 transition-colors hover:bg-gray-100 sm:right-4 sm:top-4"
+            aria-label="팝업 닫기"
+          >
+            <X className="h-6 w-6 text-gray-400" />
+          </button>
+
           <div className="flex min-w-0 items-start gap-3">
             <div className={`shrink-0 p-3 rounded-full border-2 ${colorClass}`}>
               <Icon className="h-5 w-5" />
@@ -439,37 +448,42 @@ const AlertPopup = ({ alert, onClose, onUpdate }) => {
                 >
                   {currentStatus.label}
                 </span>
-                {hasAuthorPermission && (
+              </div>
+              {hasAuthorPermission && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center gap-1 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
                     <Key className="h-3 w-3" />
                     <span>내가 작성</span>
                   </span>
-                )}
-              </div>
+                  {isSupabaseOnline && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={openEditModal}
+                        className="rounded-full p-2 text-blue-600 transition-colors hover:bg-blue-50"
+                        title="수정"
+                        aria-label="게시글 수정"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowDeleteModal(true)}
+                        className="rounded-full p-2 text-red-600 transition-colors hover:bg-red-50"
+                        title="삭제"
+                        aria-label="게시글 삭제"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
-          <div className="flex shrink-0 items-center justify-end gap-2">
-            {/* 수정/삭제 버튼 - 작성자만 표시 */}
-            {hasAuthorPermission && isSupabaseOnline && (
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={openEditModal}
-                  className="p-2 hover:bg-blue-50 text-blue-600 rounded-full transition-colors"
-                  title="수정"
-                >
-                  <Edit3 className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => setShowDeleteModal(true)}
-                  className="p-2 hover:bg-red-50 text-red-600 rounded-full transition-colors"
-                  title="삭제"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            )}
-            {/* 슬라이드 인디케이터 - 여러 알림이 있을 때만 표시 */}
-            {isMultipleAlerts && (
+          {isMultipleAlerts ? (
+            <div className="flex shrink-0 items-center justify-end gap-2">
+              {/* 슬라이드 인디케이터 - 여러 알림이 있을 때만 표시 */}
               <div className="flex items-center gap-1">
                 <span className="text-xs text-gray-500">
                   {currentIndex + 1}/{alerts.length}
@@ -485,14 +499,8 @@ const AlertPopup = ({ alert, onClose, onUpdate }) => {
                   ))}
                 </div>
               </div>
-            )}
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-            >
-              <X className="h-5 w-5 text-gray-400" />
-            </button>
-          </div>
+            </div>
+          ) : null}
         </div>
 
         {/* 스크롤 가능한 내용 영역 */}

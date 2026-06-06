@@ -15,6 +15,7 @@ import AlertPopup from "./components/AlertPopup";
 import NearbySheet from "./components/NearbySheet";
 import NotificationPanel from "./components/NotificationPanel";
 import QuickReportModal from "./components/QuickReportModal";
+import PublicNotice from "./components/PublicNotice";
 import Footer from "./components/Footer";
 import TermsOfService from "./components/TermsOfService";
 import PrivacyPolicy from "./components/PrivacyPolicy";
@@ -38,6 +39,9 @@ function App() {
   const [showCreateMenu, setShowCreateMenu] = useState(false);
   const [showNearbyModal, setShowNearbyModal] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showPublicNotice, setShowPublicNotice] = useState(
+    localStorage.getItem("publicNoticeDismissed") !== "true"
+  );
   const [notifications, setNotifications] = useState(getLocalNotifications);
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
@@ -263,6 +267,11 @@ function App() {
     (notification) => !notification.read
   ).length;
 
+  const closePublicNotice = () => {
+    localStorage.setItem("publicNoticeDismissed", "true");
+    setShowPublicNotice(false);
+  };
+
   return (
     <div className="h-screen w-screen relative overflow-hidden">
       {/* 전체 화면 지도 */}
@@ -454,6 +463,8 @@ function App() {
       {showLocationTerms && (
         <LocationTerms onClose={() => setShowLocationTerms(false)} />
       )}
+
+      {showPublicNotice && <PublicNotice onClose={closePublicNotice} />}
 
       <ToastContainer />
     </div>
