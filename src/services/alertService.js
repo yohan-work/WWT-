@@ -5,6 +5,29 @@ const generateAuthorKey = () => {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
 };
 
+const getGuestKey = () => {
+  const existingKey = localStorage.getItem("guestKey");
+  if (existingKey) return existingKey;
+
+  const guestKey = `guest_${generateAuthorKey()}`;
+  localStorage.setItem("guestKey", guestKey);
+  return guestKey;
+};
+
+const normalizeVerificationCounts = (verifications = []) => {
+  return verifications.reduce(
+    (counts, item) => {
+      if (item.type === "confirm") counts.confirm += 1;
+      if (item.type === "dispute") counts.dispute += 1;
+      if (item.type === "evidence") counts.evidence += 1;
+      return counts;
+    },
+    { confirm: 0, dispute: 0, evidence: 0 }
+  );
+};
+
+export const getLocalGuestKey = () => getGuestKey();
+
 // 이미지 압축 함수
 const compressImage = (file, maxWidth = 800, quality = 0.8) => {
   return new Promise((resolve) => {
@@ -279,6 +302,215 @@ export const getAlerts = async () => {
     console.error("알림 조회 오류:", error);
     throw error;
   }
+};
+
+export const getAlertVerifications = async (alertId) => {
+  if (!isSupabaseConnected()) {
+    throw new Error("Supabase가 설정되지 않았습니다.");
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from(TABLES.ALERT_VERIFICATIONS)
+      .select("*")
+      .eq("alert_id", alertId)
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+
+    const guestKey = getGuestKey();
+    const items = data || [];
+
+    return {
+      items,
+      counts: normalizeVerificationCounts(items),
+      myTypes: items
+        .filter((item) => item.guest_key === guestKey)
+        .map((item) => item.type),
+    };
+  } catch (error) {
+    console.error("검증 정보 조회 오류:", error);
+    throw error;
+  }
+};
+
+export const addAlertVerification = async (alertId, type, note = "") => {
+  if (!isSupabaseConnected()) {
+    throw new Error("Supabase가 설정되지 않았습니다.");
+  }
+
+  try {
+    const guestKey = getGuestKey();
+    const { data: existing, error: selectError } = await supabase
+      .from(TABLES.ALERT_VERIFICATIONS)
+      .select("*")
+      .eq("alert_id", alertId)
+      .eq("guest_key", guestKey)
+      .eq("type", type)
+      .maybeSingle();
+
+    if (selectError) throw selectError;
+    if (existing) {
+      const { error: deleteError } = await supabase
+        .from(TABLES.ALERT_VERIFICATIONS)
+        .delete()
+        .eq("id", existing.id);
+
+      if (deleteError) throw deleteError;
+      return { ...existing, removed: true };
+    }
+
+    const { data, error } = await supabase
+      .from(TABLES.ALERT_VERIFICATIONS)
+      .insert([
+        {
+          alert_id: alertId,
+          guest_key: guestKey,
+          type,
+          note,
+          created_at: new Date().toISOString(),
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error("검증 등록 오류:", error);
+    throw error;
+  }
+};
+
+export const subscribeToAlertVerifications = (alertId, callback) => {
+  if (!isSupabaseConnected()) {
+    console.warn("Supabase가 설정되지 않았습니다. 검증 구독이 비활성화됩니다.");
+    return { unsubscribe: () => {} };
+  }
+
+  return supabase
+    .channel(`alert_verifications_${alertId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: TABLES.ALERT_VERIFICATIONS,
+        filter: `alert_id=eq.${alertId}`,
+      },
+      callback
+    )
+    .subscribe();
+};
+
+export const getOrCreateAlertChatRoom = async (alertItem) => {
+  if (!isSupabaseConnected()) {
+    throw new Error("Supabase가 설정되지 않았습니다.");
+  }
+
+  try {
+    const { data: existingRoom, error: selectError } = await supabase
+      .from(TABLES.CHAT_ROOMS)
+      .select("*")
+      .eq("type", "alert")
+      .eq("alert_id", alertItem.id)
+      .maybeSingle();
+
+    if (selectError) throw selectError;
+    if (existingRoom) return existingRoom;
+
+    const { data, error } = await supabase
+      .from(TABLES.CHAT_ROOMS)
+      .insert([
+        {
+          type: "alert",
+          alert_id: alertItem.id,
+          center_lat: alertItem.location?.lat || alertItem.lat || null,
+          center_lng: alertItem.location?.lng || alertItem.lng || null,
+          radius_m: 500,
+          created_at: new Date().toISOString(),
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error("채팅방 생성/조회 오류:", error);
+    throw error;
+  }
+};
+
+export const getChatMessages = async (roomId) => {
+  if (!isSupabaseConnected()) {
+    throw new Error("Supabase가 설정되지 않았습니다.");
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from(TABLES.CHAT_MESSAGES)
+      .select("*")
+      .eq("room_id", roomId)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: true })
+      .limit(100);
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error("채팅 메시지 조회 오류:", error);
+    throw error;
+  }
+};
+
+export const addChatMessage = async (roomId, content, userName) => {
+  if (!isSupabaseConnected()) {
+    throw new Error("Supabase가 설정되지 않았습니다.");
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from(TABLES.CHAT_MESSAGES)
+      .insert([
+        {
+          room_id: roomId,
+          guest_key: getGuestKey(),
+          user_name: userName,
+          content,
+          created_at: new Date().toISOString(),
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error("채팅 메시지 작성 오류:", error);
+    throw error;
+  }
+};
+
+export const subscribeToChatMessages = (roomId, callback) => {
+  if (!isSupabaseConnected()) {
+    console.warn("Supabase가 설정되지 않았습니다. 채팅 구독이 비활성화됩니다.");
+    return { unsubscribe: () => {} };
+  }
+
+  return supabase
+    .channel(`chat_messages_${roomId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: TABLES.CHAT_MESSAGES,
+        filter: `room_id=eq.${roomId}`,
+      },
+      callback
+    )
+    .subscribe();
 };
 
 // 실시간 알림 구독

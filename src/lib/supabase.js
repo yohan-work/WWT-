@@ -25,5 +25,8 @@ export const isSupabaseConnected = () => {
 export const TABLES = {
   ALERTS: "alerts",
   COMMENTS: "comments",
+  ALERT_VERIFICATIONS: "alert_verifications",
+  CHAT_ROOMS: "chat_rooms",
+  CHAT_MESSAGES: "chat_messages",
   USERS: "users",
 };

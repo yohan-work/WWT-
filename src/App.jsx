@@ -3,9 +3,8 @@ import {
   MapPin,
   Plus,
   AlertTriangle,
-  Volume2,
-  Users,
-  MessageSquare,
+  Bell,
+  BellOff,
 } from "lucide-react";
 import Map from "./components/Map";
 import ReportModal from "./components/ReportModal";
@@ -13,6 +12,7 @@ import AlertPopup from "./components/AlertPopup";
 import Footer from "./components/Footer";
 import TermsOfService from "./components/TermsOfService";
 import PrivacyPolicy from "./components/PrivacyPolicy";
+import { useToast } from "./components/Toast";
 import {
   getAlerts,
   createAlert,
@@ -25,6 +25,13 @@ function App() {
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
   const [isOnline, setIsOnline] = useState(true);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(
+    localStorage.getItem("notificationsEnabled") !== "false"
+  );
+  const [notificationRadius, setNotificationRadius] = useState(
+    Number(localStorage.getItem("notificationRadius") || 1000)
+  );
+  const { showToast, ToastContainer } = useToast();
 
   // 법적 문서 모달 상태
   const [showTerms, setShowTerms] = useState(false);
@@ -80,6 +87,7 @@ function App() {
   const handleAlertChange = (payload) => {
     if (payload.eventType === "INSERT") {
       setAlerts((prev) => [payload.new, ...prev]);
+      notifyNearbyAlert(payload.new);
     } else if (payload.eventType === "DELETE") {
       setAlerts((prev) => prev.filter((alert) => alert.id !== payload.old.id));
     } else if (payload.eventType === "UPDATE") {
@@ -87,6 +95,74 @@ function App() {
         prev.map((alert) => (alert.id === payload.new.id ? payload.new : alert))
       );
     }
+  };
+
+  const getDistanceMeters = (from, to) => {
+    if (!from || !to) return Infinity;
+
+    const earthRadiusMeters = 6371000;
+    const lat1 = (from.lat * Math.PI) / 180;
+    const lat2 = (to.lat * Math.PI) / 180;
+    const deltaLat = ((to.lat - from.lat) * Math.PI) / 180;
+    const deltaLng = ((to.lng - from.lng) * Math.PI) / 180;
+
+    const a =
+      Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+      Math.cos(lat1) *
+        Math.cos(lat2) *
+        Math.sin(deltaLng / 2) *
+        Math.sin(deltaLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return earthRadiusMeters * c;
+  };
+
+  const notifyNearbyAlert = (alert) => {
+    if (!notificationsEnabled || !userLocation) return;
+
+    const alertLocation =
+      alert.location ||
+      (alert.lat && alert.lng ? { lat: alert.lat, lng: alert.lng } : null);
+    const distance = getDistanceMeters(userLocation, alertLocation);
+
+    if (distance <= notificationRadius) {
+      showToast(
+        `반경 ${Math.round(notificationRadius / 1000)}km 안 새 제보: ${
+          alert.title
+        }`,
+        alert.type === "emergency" || alert.type === "safety"
+          ? "error"
+          : "info",
+        5000
+      );
+    }
+  };
+
+  const toggleNotifications = () => {
+    const nextValue = !notificationsEnabled;
+    setNotificationsEnabled(nextValue);
+    localStorage.setItem("notificationsEnabled", String(nextValue));
+  };
+
+  const updateNotificationRadius = (radius) => {
+    setNotificationRadius(radius);
+    localStorage.setItem("notificationRadius", String(radius));
+  };
+
+  const getCreateAlertErrorMessage = (error) => {
+    const message = error?.message || "";
+
+    if (message.includes("author_key") || message.includes("image_url")) {
+      return "Supabase 테이블 컬럼이 현재 앱과 맞지 않습니다. supabase-app-setup.sql을 실행해주세요.";
+    }
+    if (message.includes("row-level security") || message.includes("policy")) {
+      return "Supabase 권한 정책 때문에 저장할 수 없습니다. RLS 정책을 확인해주세요.";
+    }
+    if (message.includes("Supabase가 설정되지 않았습니다")) {
+      return "Supabase 환경변수 또는 연결 설정을 확인해주세요.";
+    }
+
+    return "알림 생성에 실패했습니다. 다시 시도해주세요.";
   };
 
   const addAlert = async (alertData) => {
@@ -120,7 +196,7 @@ function App() {
       setShowReportModal(false);
     } catch (error) {
       console.error("알림 생성 실패:", error);
-      window.alert("알림 생성에 실패했습니다. 다시 시도해주세요.");
+      window.alert(getCreateAlertErrorMessage(error));
     }
   };
 
@@ -149,6 +225,38 @@ function App() {
               <span>오프라인</span>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* 반경 기반 알림 설정 */}
+      <div className="fixed top-4 right-4 bg-white/90 backdrop-blur-sm rounded-2xl px-3 py-2 shadow-lg z-50">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleNotifications}
+            className={`p-2 rounded-full transition-colors ${
+              notificationsEnabled
+                ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+            }`}
+            title={notificationsEnabled ? "주변 알림 켜짐" : "주변 알림 꺼짐"}
+          >
+            {notificationsEnabled ? (
+              <Bell className="h-4 w-4" />
+            ) : (
+              <BellOff className="h-4 w-4" />
+            )}
+          </button>
+          <select
+            value={notificationRadius}
+            onChange={(e) => updateNotificationRadius(Number(e.target.value))}
+            disabled={!notificationsEnabled}
+            className="bg-transparent text-sm font-medium text-gray-700 outline-none disabled:text-gray-400"
+            title="주변 알림 반경"
+          >
+            <option value={500}>500m</option>
+            <option value={1000}>1km</option>
+            <option value={3000}>3km</option>
+          </select>
         </div>
       </div>
 
@@ -192,6 +300,8 @@ function App() {
 
       {/* 개인정보처리방침 모달 */}
       {showPrivacy && <PrivacyPolicy onClose={() => setShowPrivacy(false)} />}
+
+      <ToastContainer />
     </div>
   );
 }
