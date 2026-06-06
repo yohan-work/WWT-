@@ -4,6 +4,7 @@ const Map = ({ userLocation, alerts, onMarkerClick, className }) => {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markersRef = useRef([]);
+  const clustererRef = useRef(null);
 
   // 카카오맵 API 키 (환경변수에서 가져오기)
   const KAKAO_API_KEY =
@@ -31,7 +32,7 @@ const Map = ({ userLocation, alerts, onMarkerClick, className }) => {
         // 카카오맵 스크립트 동적 로드
         const script = document.createElement("script");
         script.id = "kakao-map-script";
-        script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_API_KEY}&autoload=false`;
+        script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_API_KEY}&autoload=false&libraries=clusterer`;
         script.onload = () => {
           window.kakao.maps.load(resolve);
         };
@@ -109,6 +110,31 @@ const Map = ({ userLocation, alerts, onMarkerClick, className }) => {
         // 지도 생성
         const map = new window.kakao.maps.Map(container, options);
         mapInstanceRef.current = map;
+        if (window.kakao.maps.MarkerClusterer) {
+          clustererRef.current = new window.kakao.maps.MarkerClusterer({
+            map,
+            averageCenter: true,
+            minLevel: 5,
+            minClusterSize: 2,
+            disableClickZoom: false,
+            styles: [
+              {
+                width: "44px",
+                height: "44px",
+                background: "rgba(37, 99, 235, 0.92)",
+                border: "3px solid #ffffff",
+                borderRadius: "50%",
+                color: "#ffffff",
+                textAlign: "center",
+                fontWeight: "700",
+                lineHeight: "38px",
+                boxShadow: "0 10px 24px rgba(15, 23, 42, 0.25)",
+              },
+            ],
+          });
+        } else {
+          clustererRef.current = null;
+        }
 
         // 사용자 위치 마커
         const userMarkerPosition = new window.kakao.maps.LatLng(
@@ -177,8 +203,12 @@ const Map = ({ userLocation, alerts, onMarkerClick, className }) => {
 
   const updateAlertMarkers = (map) => {
     // 기존 마커들 제거
+    if (clustererRef.current) {
+      clustererRef.current.clear();
+    }
     markersRef.current.forEach((marker) => marker.setMap(null));
     markersRef.current = [];
+    const nextMarkers = [];
 
     // 새 알림 마커들 생성
     alerts.forEach((alert) => {
@@ -211,8 +241,6 @@ const Map = ({ userLocation, alerts, onMarkerClick, className }) => {
           image: markerImage,
         });
 
-        marker.setMap(map);
-
         // 마커 클릭 이벤트
         window.kakao.maps.event.addListener(marker, "click", () => {
           if (onMarkerClick) {
@@ -229,9 +257,17 @@ const Map = ({ userLocation, alerts, onMarkerClick, className }) => {
           }
         });
 
-        markersRef.current.push(marker);
+        nextMarkers.push(marker);
       }
     });
+
+    markersRef.current = nextMarkers;
+
+    if (clustererRef.current) {
+      clustererRef.current.addMarkers(nextMarkers);
+    } else {
+      nextMarkers.forEach((marker) => marker.setMap(map));
+    }
   };
 
   // 같은 위치의 알림들을 찾는 함수

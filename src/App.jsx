@@ -18,6 +18,7 @@ import QuickReportModal from "./components/QuickReportModal";
 import Footer from "./components/Footer";
 import TermsOfService from "./components/TermsOfService";
 import PrivacyPolicy from "./components/PrivacyPolicy";
+import LocationTerms from "./components/LocationTerms";
 import { useToast } from "./components/Toast";
 import {
   getAlerts,
@@ -52,6 +53,7 @@ function App() {
   // 법적 문서 모달 상태
   const [showTerms, setShowTerms] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showLocationTerms, setShowLocationTerms] = useState(false);
 
   useEffect(() => {
     // 위치 권한 요청
@@ -415,6 +417,7 @@ function App() {
       <Footer
         onTermsClick={() => setShowTerms(true)}
         onPrivacyClick={() => setShowPrivacy(true)}
+        onLocationClick={() => setShowLocationTerms(true)}
       />
 
       {/* 신고 모달 */}
@@ -447,6 +450,10 @@ function App() {
 
       {/* 개인정보처리방침 모달 */}
       {showPrivacy && <PrivacyPolicy onClose={() => setShowPrivacy(false)} />}
+
+      {showLocationTerms && (
+        <LocationTerms onClose={() => setShowLocationTerms(false)} />
+      )}
 
       <ToastContainer />
     </div>

@@ -89,6 +89,15 @@ const TermsOfService = ({ onClose }) => {
                   <strong>2.4</strong> 상업적 목적의 광고나 스팸 게시를
                   금지합니다.
                 </p>
+                <p>
+                  <strong>2.5</strong> 차량번호, 전화번호, 얼굴, 실명, 주소 등
+                  타인을 식별할 수 있는 정보가 포함된 게시물은 제한될 수
+                  있습니다.
+                </p>
+                <p>
+                  <strong>2.6</strong> 범죄 조장, 혐오·차별, 음란물, 폭력적
+                  위협, 허위 긴급상황 유포를 금지합니다.
+                </p>
               </div>
             </section>
 
@@ -108,6 +117,11 @@ const TermsOfService = ({ onClose }) => {
                 <p>
                   <strong>3.3</strong> 응급상황 시에는 반드시 119, 112 등 공식
                   기관에 신고하시기 바랍니다.
+                </p>
+                <p>
+                  <strong>3.4</strong> 본 서비스의 검증 배지, 상태 표시, 현장
+                  대화는 이용자 참여에 따른 참고 정보이며 공식 확인을 의미하지
+                  않습니다.
                 </p>
               </div>
             </section>
@@ -134,15 +148,41 @@ const TermsOfService = ({ onClose }) => {
 
             <section className="mb-8">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                5. 약관 변경
+                5. 신고 및 임시조치
               </h3>
               <div className="space-y-3 text-gray-700">
                 <p>
-                  <strong>5.1</strong> 본 약관은 서비스 개선을 위해 변경될 수
+                  <strong>5.1</strong> 이용자는 개인정보 노출, 사생활 침해,
+                  명예훼손, 허위정보, 위험 조장, 광고·스팸 게시물을 신고할 수
                   있습니다.
                 </p>
                 <p>
-                  <strong>5.2</strong> 중요한 변경사항은 서비스 내 공지를 통해
+                  <strong>5.2</strong> 회사는 권리침해 또는 안전상 위험이
+                  있다고 판단되는 게시물을 사전 통지 없이 숨김, 삭제, 상태 변경
+                  또는 임시조치할 수 있습니다.
+                </p>
+                <p>
+                  <strong>5.3</strong> 권리침해 신고가 접수된 게시물은 사실관계
+                  확인 전이라도 임시로 접근이 제한될 수 있습니다.
+                </p>
+                <p>
+                  <strong>5.4</strong> 게시자는 조치에 이의가 있는 경우
+                  운영자에게 재검토를 요청할 수 있습니다.
+                </p>
+              </div>
+            </section>
+
+            <section className="mb-8">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                6. 약관 변경
+              </h3>
+              <div className="space-y-3 text-gray-700">
+                <p>
+                  <strong>6.1</strong> 본 약관은 서비스 개선을 위해 변경될 수
+                  있습니다.
+                </p>
+                <p>
+                  <strong>6.2</strong> 중요한 변경사항은 서비스 내 공지를 통해
                   알려드립니다.
                 </p>
               </div>
@@ -150,7 +190,7 @@ const TermsOfService = ({ onClose }) => {
 
             <section className="mb-8 bg-gray-50 p-4 rounded-lg">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                6. 연락처
+                7. 연락처
               </h3>
               <div className="text-gray-700">
                 <p>서비스 관련 문의나 신고는 아래로 연락주시기 바랍니다:</p>

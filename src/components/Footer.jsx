@@ -1,7 +1,7 @@
 import React from "react";
-import { Shield, Lock, Copyright } from "lucide-react";
+import { Shield, Lock, Copyright, MapPin } from "lucide-react";
 
-const Footer = ({ onTermsClick, onPrivacyClick }) => {
+const Footer = ({ onTermsClick, onPrivacyClick, onLocationClick }) => {
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-gray-200 z-40">
       <div className="max-w-4xl mx-auto px-4 py-3">
@@ -9,7 +9,7 @@ const Footer = ({ onTermsClick, onPrivacyClick }) => {
           {/* 왼쪽: 저작권 */}
           <div className="flex items-center space-x-2 text-xs text-gray-500">
             <Copyright className="h-3 w-3" />
-            <span>© 2025 동네 알림이. All rights reserved.</span>
+            <span>© 2026 동네 알림이. All rights reserved.</span>
           </div>
 
           {/* 오른쪽: 법적 링크들 */}
@@ -28,6 +28,14 @@ const Footer = ({ onTermsClick, onPrivacyClick }) => {
             >
               <Lock className="h-3 w-3" />
               <span>개인정보처리방침</span>
+            </button>
+            <span className="text-gray-300">|</span>
+            <button
+              onClick={onLocationClick}
+              className="flex items-center space-x-1 text-gray-600 hover:text-blue-600 transition-colors"
+            >
+              <MapPin className="h-3 w-3" />
+              <span>위치정보약관</span>
             </button>
           </div>
         </div>
