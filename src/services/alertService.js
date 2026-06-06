@@ -28,6 +28,121 @@ const normalizeVerificationCounts = (verifications = []) => {
 
 export const getLocalGuestKey = () => getGuestKey();
 
+export const getDistanceMeters = (from, to) => {
+  if (!from || !to) return Infinity;
+
+  const earthRadiusMeters = 6371000;
+  const lat1 = (from.lat * Math.PI) / 180;
+  const lat2 = (to.lat * Math.PI) / 180;
+  const deltaLat = ((to.lat - from.lat) * Math.PI) / 180;
+  const deltaLng = ((to.lng - from.lng) * Math.PI) / 180;
+
+  const a =
+    Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+    Math.cos(lat1) *
+      Math.cos(lat2) *
+      Math.sin(deltaLng / 2) *
+      Math.sin(deltaLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return earthRadiusMeters * c;
+};
+
+export const getAlertLocation = (alert) => {
+  return (
+    alert?.location ||
+    (alert?.lat && alert?.lng ? { lat: alert.lat, lng: alert.lng } : null)
+  );
+};
+
+export const getNearbyAlerts = (
+  alerts,
+  userLocation,
+  { category = "all", hideResolved = true, radius = 3000 } = {}
+) => {
+  return (alerts || [])
+    .map((alert) => ({
+      ...alert,
+      distanceMeters: getDistanceMeters(userLocation, getAlertLocation(alert)),
+    }))
+    .filter((alert) => alert.distanceMeters <= radius)
+    .filter((alert) => category === "all" || alert.type === category)
+    .filter((alert) => !hideResolved || alert.status !== "resolved")
+    .sort((a, b) => {
+      const priority = { emergency: 0, safety: 1, traffic: 2, noise: 3, other: 4 };
+      const aTime = new Date(a.created_at || a.timestamp || 0).getTime();
+      const bTime = new Date(b.created_at || b.timestamp || 0).getTime();
+      const aScore =
+        a.distanceMeters / 20 +
+        (Date.now() - aTime) / 60000 +
+        (priority[a.type] || 4) * 30;
+      const bScore =
+        b.distanceMeters / 20 +
+        (Date.now() - bTime) / 60000 +
+        (priority[b.type] || 4) * 30;
+
+      return aScore - bScore;
+    });
+};
+
+export const createQuickAlertPayload = ({ type, note, imageUrl, location }) => {
+  const labels = {
+    emergency: "응급상황",
+    noise: "소음",
+    traffic: "교통",
+    safety: "안전",
+    other: "기타",
+  };
+  const label = labels[type] || "상황";
+
+  return {
+    type,
+    title: `${label} 제보`,
+    description: note?.trim() || "현장에서 빠르게 공유된 상황입니다.",
+    imageUrl,
+    location,
+  };
+};
+
+const LOCAL_NOTIFICATIONS_KEY = "localNotifications";
+
+export const getLocalNotifications = () => {
+  return JSON.parse(localStorage.getItem(LOCAL_NOTIFICATIONS_KEY) || "[]");
+};
+
+export const saveLocalNotification = (notification) => {
+  const notifications = getLocalNotifications();
+  const nextNotification = {
+    id: notification.id || `${Date.now()}_${Math.random().toString(36).slice(2)}`,
+    read: false,
+    created_at: new Date().toISOString(),
+    ...notification,
+  };
+  const nextNotifications = [nextNotification, ...notifications].slice(0, 50);
+
+  localStorage.setItem(
+    LOCAL_NOTIFICATIONS_KEY,
+    JSON.stringify(nextNotifications)
+  );
+
+  return nextNotifications;
+};
+
+export const markNotificationRead = (notificationId) => {
+  const nextNotifications = getLocalNotifications().map((notification) =>
+    notification.id === notificationId
+      ? { ...notification, read: true }
+      : notification
+  );
+
+  localStorage.setItem(
+    LOCAL_NOTIFICATIONS_KEY,
+    JSON.stringify(nextNotifications)
+  );
+
+  return nextNotifications;
+};
+
 // 이미지 압축 함수
 const compressImage = (file, maxWidth = 800, quality = 0.8) => {
   return new Promise((resolve) => {
@@ -140,6 +255,7 @@ export const createAlert = async (alertData) => {
       ...restData,
       lat: location?.lat,
       lng: location?.lng,
+      status: restData.status || "active",
       author_key: authorKey,
       created_at: new Date().toISOString(),
     };
@@ -166,6 +282,36 @@ export const createAlert = async (alertData) => {
     return result;
   } catch (error) {
     console.error("알림 생성 오류:", error);
+    throw error;
+  }
+};
+
+export const updateAlertStatus = async (alertId, status) => {
+  if (!isSupabaseConnected()) {
+    throw new Error(
+      "Supabase가 설정되지 않았습니다. 오프라인 모드로 작동합니다."
+    );
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from(TABLES.ALERTS)
+      .update({
+        status,
+        resolved_at: status === "resolved" ? new Date().toISOString() : null,
+      })
+      .eq("id", alertId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return {
+      ...data,
+      location: data.lat && data.lng ? { lat: data.lat, lng: data.lng } : null,
+    };
+  } catch (error) {
+    console.error("상태 변경 오류:", error);
     throw error;
   }
 };

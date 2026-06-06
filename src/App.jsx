@@ -5,10 +5,16 @@ import {
   AlertTriangle,
   Bell,
   BellOff,
+  Edit3,
+  List,
+  Zap,
 } from "lucide-react";
 import Map from "./components/Map";
 import ReportModal from "./components/ReportModal";
 import AlertPopup from "./components/AlertPopup";
+import NearbySheet from "./components/NearbySheet";
+import NotificationPanel from "./components/NotificationPanel";
+import QuickReportModal from "./components/QuickReportModal";
 import Footer from "./components/Footer";
 import TermsOfService from "./components/TermsOfService";
 import PrivacyPolicy from "./components/PrivacyPolicy";
@@ -17,11 +23,21 @@ import {
   getAlerts,
   createAlert,
   subscribeToAlerts,
+  getDistanceMeters,
+  getAlertLocation,
+  getLocalNotifications,
+  saveLocalNotification,
+  markNotificationRead,
 } from "./services/alertService";
 
 function App() {
   const [alerts, setAlerts] = useState([]);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showQuickReportModal, setShowQuickReportModal] = useState(false);
+  const [showCreateMenu, setShowCreateMenu] = useState(false);
+  const [showNearbyModal, setShowNearbyModal] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState(getLocalNotifications);
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
   const [isOnline, setIsOnline] = useState(true);
@@ -94,38 +110,43 @@ function App() {
       setAlerts((prev) =>
         prev.map((alert) => (alert.id === payload.new.id ? payload.new : alert))
       );
+      if (payload.old?.status && payload.old.status !== payload.new?.status) {
+        const nextNotifications = saveLocalNotification({
+          alert_id: payload.new.id,
+          type: "status_changed",
+          title: "상황 상태 변경",
+          message: `${payload.new.title} · ${getStatusLabel(payload.new.status)}`,
+        });
+        setNotifications(nextNotifications);
+      }
     }
   };
 
-  const getDistanceMeters = (from, to) => {
-    if (!from || !to) return Infinity;
-
-    const earthRadiusMeters = 6371000;
-    const lat1 = (from.lat * Math.PI) / 180;
-    const lat2 = (to.lat * Math.PI) / 180;
-    const deltaLat = ((to.lat - from.lat) * Math.PI) / 180;
-    const deltaLng = ((to.lng - from.lng) * Math.PI) / 180;
-
-    const a =
-      Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
-      Math.cos(lat1) *
-        Math.cos(lat2) *
-        Math.sin(deltaLng / 2) *
-        Math.sin(deltaLng / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return earthRadiusMeters * c;
+  const getStatusLabel = (status) => {
+    const labels = {
+      active: "진행중",
+      confirmed: "확인됨",
+      resolved: "해결됨",
+      needs_attention: "주의필요",
+    };
+    return labels[status] || "진행중";
   };
 
   const notifyNearbyAlert = (alert) => {
     if (!notificationsEnabled || !userLocation) return;
 
-    const alertLocation =
-      alert.location ||
-      (alert.lat && alert.lng ? { lat: alert.lat, lng: alert.lng } : null);
+    const alertLocation = getAlertLocation(alert);
     const distance = getDistanceMeters(userLocation, alertLocation);
 
     if (distance <= notificationRadius) {
+      const nextNotifications = saveLocalNotification({
+        alert_id: alert.id,
+        type: "nearby_alert",
+        title: "내 주변 새 제보",
+        message: alert.title,
+      });
+
+      setNotifications(nextNotifications);
       showToast(
         `반경 ${Math.round(notificationRadius / 1000)}km 안 새 제보: ${
           alert.title
@@ -152,7 +173,11 @@ function App() {
   const getCreateAlertErrorMessage = (error) => {
     const message = error?.message || "";
 
-    if (message.includes("author_key") || message.includes("image_url")) {
+    if (
+      message.includes("author_key") ||
+      message.includes("image_url") ||
+      message.includes("status")
+    ) {
       return "Supabase 테이블 컬럼이 현재 앱과 맞지 않습니다. supabase-app-setup.sql을 실행해주세요.";
     }
     if (message.includes("row-level security") || message.includes("policy")) {
@@ -194,11 +219,47 @@ function App() {
       }
 
       setShowReportModal(false);
+      setShowQuickReportModal(false);
+      setShowCreateMenu(false);
     } catch (error) {
       console.error("알림 생성 실패:", error);
       window.alert(getCreateAlertErrorMessage(error));
     }
   };
+
+  const handlePopupUpdate = (updatedAlert) => {
+    if (updatedAlert?.id) {
+      setAlerts((prev) =>
+        prev.map((alert) =>
+          alert.id === updatedAlert.id ? { ...alert, ...updatedAlert } : alert
+        )
+      );
+      setSelectedAlert((prev) => {
+        if (Array.isArray(prev)) {
+          return prev.map((alert) =>
+            alert.id === updatedAlert.id ? { ...alert, ...updatedAlert } : alert
+          );
+        }
+        return prev?.id === updatedAlert.id ? { ...prev, ...updatedAlert } : prev;
+      });
+      return;
+    }
+
+    loadAlerts();
+  };
+
+  const handleSelectNotification = (notification) => {
+    setNotifications(markNotificationRead(notification.id));
+    const alert = alerts.find((item) => item.id === notification.alert_id);
+    if (alert) {
+      setSelectedAlert(alert);
+      setShowNotifications(false);
+    }
+  };
+
+  const unreadNotificationCount = notifications.filter(
+    (notification) => !notification.read
+  ).length;
 
   return (
     <div className="h-screen w-screen relative overflow-hidden">
@@ -232,18 +293,23 @@ function App() {
       <div className="fixed top-4 right-4 bg-white/90 backdrop-blur-sm rounded-2xl px-3 py-2 shadow-lg z-50">
         <div className="flex items-center gap-2">
           <button
-            onClick={toggleNotifications}
-            className={`p-2 rounded-full transition-colors ${
+            onClick={() => setShowNotifications((value) => !value)}
+            className={`relative p-2 rounded-full transition-colors ${
               notificationsEnabled
                 ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                 : "bg-gray-100 text-gray-500 hover:bg-gray-200"
             }`}
-            title={notificationsEnabled ? "주변 알림 켜짐" : "주변 알림 꺼짐"}
+            title="알림함"
           >
             {notificationsEnabled ? (
               <Bell className="h-4 w-4" />
             ) : (
               <BellOff className="h-4 w-4" />
+            )}
+            {unreadNotificationCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[0.6rem] font-bold text-white">
+                {unreadNotificationCount}
+              </span>
             )}
           </button>
           <select
@@ -257,20 +323,93 @@ function App() {
             <option value={1000}>1km</option>
             <option value={3000}>3km</option>
           </select>
+          <button
+            onClick={toggleNotifications}
+            className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-200"
+            title={notificationsEnabled ? "주변 알림 끄기" : "주변 알림 켜기"}
+          >
+            {notificationsEnabled ? "ON" : "OFF"}
+          </button>
         </div>
       </div>
 
+      {showNotifications && (
+        <NotificationPanel
+          notifications={notifications}
+          onClose={() => setShowNotifications(false)}
+          onSelectNotification={handleSelectNotification}
+          onMarkRead={(id) => setNotifications(markNotificationRead(id))}
+        />
+      )}
+
+      {showNearbyModal && (
+        <NearbySheet
+          alerts={alerts}
+          userLocation={userLocation}
+          radius={notificationRadius}
+          onSelectAlert={setSelectedAlert}
+          onClose={() => setShowNearbyModal(false)}
+        />
+      )}
+
       {/* 플로팅 버튼 */}
-      <button
-        onClick={() => setShowReportModal(true)}
-        className="fixed bottom-20 right-6 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white rounded-full p-4 shadow-2xl transition-all hover:scale-105 active:scale-95 z-50 touch-manipulation"
-        style={{
-          bottom: "max(5rem, env(safe-area-inset-bottom) + 5rem)",
-          right: "max(1.5rem, env(safe-area-inset-right))",
-        }}
-      >
-        <Plus className="h-6 w-6" />
-      </button>
+      {!showNearbyModal && showCreateMenu && (
+        <div
+          className="fixed right-6 z-50 w-44 rounded-2xl border border-gray-200 bg-white p-2 shadow-2xl"
+          style={{
+            bottom: "max(9rem, env(safe-area-inset-bottom) + 9rem)",
+            right: "max(1.5rem, env(safe-area-inset-right))",
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              setShowQuickReportModal(true);
+              setShowCreateMenu(false);
+            }}
+            className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-100"
+          >
+            <Zap className="h-4 w-4 text-primary-600" />
+            빠른 제보
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setShowReportModal(true);
+              setShowCreateMenu(false);
+            }}
+            className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-100"
+          >
+            <Edit3 className="h-4 w-4 text-gray-600" />
+            상세 작성
+          </button>
+        </div>
+      )}
+      {!showNearbyModal && (
+        <>
+          <button
+            onClick={() => setShowNearbyModal(true)}
+            className="fixed right-6 bg-white text-gray-800 rounded-full p-4 shadow-2xl transition-all hover:scale-105 active:scale-95 z-50 touch-manipulation"
+            style={{
+              bottom: "max(9.5rem, env(safe-area-inset-bottom) + 9.5rem)",
+              right: "max(1.5rem, env(safe-area-inset-right))",
+            }}
+            title="내 주변"
+          >
+            <List className="h-6 w-6" />
+          </button>
+          <button
+            onClick={() => setShowCreateMenu((value) => !value)}
+            className="fixed bottom-20 right-6 bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white rounded-full p-4 shadow-2xl transition-all hover:scale-105 active:scale-95 z-50 touch-manipulation"
+            style={{
+              bottom: "max(5rem, env(safe-area-inset-bottom) + 5rem)",
+              right: "max(1.5rem, env(safe-area-inset-right))",
+            }}
+          >
+            <Plus className="h-6 w-6" />
+          </button>
+        </>
+      )}
 
       {/* 푸터 */}
       <Footer
@@ -286,12 +425,20 @@ function App() {
         />
       )}
 
+      {showQuickReportModal && (
+        <QuickReportModal
+          userLocation={userLocation}
+          onClose={() => setShowQuickReportModal(false)}
+          onSubmit={addAlert}
+        />
+      )}
+
       {/* 알림 팝업 */}
       {selectedAlert && (
         <AlertPopup
           alert={selectedAlert}
           onClose={() => setSelectedAlert(null)}
-          onUpdate={loadAlerts}
+          onUpdate={handlePopupUpdate}
         />
       )}
 
