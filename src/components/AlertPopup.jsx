@@ -26,6 +26,7 @@ import {
   deleteAlert,
   updateAlert,
   checkAuthorPermission,
+  updateAlertStatus,
   getAlertVerifications,
   addAlertVerification,
   subscribeToAlertVerifications,
@@ -67,6 +68,7 @@ const AlertPopup = ({ alert, onClose, onUpdate }) => {
   });
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   // 현재 사용자의 권한 확인
   const hasAuthorPermission = checkAuthorPermission(currentAlert.id);
@@ -190,6 +192,21 @@ const AlertPopup = ({ alert, onClose, onUpdate }) => {
       window.alert("채팅 작성에 실패했습니다. 다시 시도해주세요.");
     } finally {
       setIsSendingChat(false);
+    }
+  };
+
+  const handleStatusChange = async (status) => {
+    if (!isSupabaseOnline || isUpdatingStatus) return;
+
+    setIsUpdatingStatus(true);
+    try {
+      const updatedAlert = await updateAlertStatus(currentAlert.id, status);
+      if (onUpdate) onUpdate(updatedAlert);
+    } catch (error) {
+      console.error("상태 변경 실패:", error);
+      window.alert("상태 변경에 실패했습니다. " + error.message);
+    } finally {
+      setIsUpdatingStatus(false);
     }
   };
 
@@ -351,6 +368,31 @@ const AlertPopup = ({ alert, onClose, onUpdate }) => {
 
   const isMyVerification = (type) => verificationState.myTypes.includes(type);
 
+  const getStatusMeta = (status = "active") => {
+    const statuses = {
+      active: {
+        label: "진행중",
+        className: "bg-gray-100 text-gray-700 border-gray-200",
+      },
+      confirmed: {
+        label: "확인됨",
+        className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      },
+      resolved: {
+        label: "해결됨",
+        className: "bg-blue-50 text-blue-700 border-blue-200",
+      },
+      needs_attention: {
+        label: "주의필요",
+        className: "bg-rose-50 text-rose-700 border-rose-200",
+      },
+    };
+
+    return statuses[status] || statuses.active;
+  };
+
+  const currentStatus = getStatusMeta(currentAlert.status);
+
   const Icon = getAlertIcon(currentAlert.type);
   const colorClass = getAlertColor(currentAlert.type);
 
@@ -392,6 +434,11 @@ const AlertPopup = ({ alert, onClose, onUpdate }) => {
               </h2>
               <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-500">
                 <span>{getTypeLabel(currentAlert.type)}</span>
+                <span
+                  className={`inline-flex items-center rounded-full border px-2 py-1 text-xs font-semibold ${currentStatus.className}`}
+                >
+                  {currentStatus.label}
+                </span>
                 {hasAuthorPermission && (
                   <span className="inline-flex items-center gap-1 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
                     <Key className="h-3 w-3" />
@@ -565,6 +612,29 @@ const AlertPopup = ({ alert, onClose, onUpdate }) => {
                       (currentAlert.image_url ? 1 : 0)}
                   </span>
                 </button>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {[
+                  ["active", "진행중"],
+                  ["confirmed", "확인됨"],
+                  ["needs_attention", "주의필요"],
+                  ["resolved", "해결됨"],
+                ].map(([status, label]) => (
+                  <button
+                    key={status}
+                    type="button"
+                    onClick={() => handleStatusChange(status)}
+                    disabled={!isSupabaseOnline || isUpdatingStatus}
+                    className={`rounded-lg border px-2 py-2 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                      (currentAlert.status || "active") === status
+                        ? "border-gray-900 bg-gray-900 text-white"
+                        : "border-gray-200 bg-white text-gray-600 hover:bg-gray-100"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
           </div>

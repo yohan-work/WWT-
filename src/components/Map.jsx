@@ -189,12 +189,14 @@ const Map = ({ userLocation, alerts, onMarkerClick, className }) => {
         );
 
         // 마커 이미지 생성 (타입별 색상)
-        const markerColor = getAlertColor(alert.type);
+        const markerColor =
+          alert.status === "resolved" ? "#94a3b8" : getAlertColor(alert.type);
+        const markerOpacity = alert.status === "resolved" ? "0.55" : "1";
         const markerImage = new window.kakao.maps.MarkerImage(
           "data:image/svg+xml;base64," +
             btoa(`
             <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="16" cy="16" r="12" fill="${markerColor}" stroke="white" stroke-width="2"/>
+              <circle cx="16" cy="16" r="12" fill="${markerColor}" fill-opacity="${markerOpacity}" stroke="white" stroke-width="2"/>
               <circle cx="16" cy="16" r="6" fill="white" fill-opacity="0.8"/>
             </svg>
           `),
